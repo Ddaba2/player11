@@ -2,9 +2,11 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { SportCV } from '../types/cv';
 import CVPreview from '../components/CVPreview';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   ArrowLeft, Download, Share2, Trophy, Copy, Check,
-  MessageCircle, ExternalLink, Loader, RefreshCw,
+  MessageCircle, ExternalLink, Loader, RefreshCw, Facebook, Image as ImageIcon,
 } from 'lucide-react';
 import Player11Logo from '../components/Logo';
 
@@ -76,12 +78,72 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
 
   const getShareUrl = () => `${window.location.origin}${window.location.pathname}?cv=${cvId}`;
 
-  const handleDownload = () => {
+  const captureCvCanvas = async () => {
+    const source = document.getElementById('cv-print-area');
+    if (!source) return null;
+
+    try {
+      if ('fonts' in document) {
+        await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+      }
+      const rect = source.getBoundingClientRect();
+      const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
+      const canvas = await html2canvas(source, {
+        scale,
+        backgroundColor: '#0f172a',
+        useCORS: true,
+        logging: false,
+        width: Math.ceil(rect.width),
+        height: Math.ceil(rect.height),
+      });
+      return canvas;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleDownload = async () => {
     setPrinting(true);
-    setTimeout(() => {
-      window.print();
+    try {
+      const canvas = await captureCvCanvas();
+      if (!canvas) return;
+      const imgData = canvas.toDataURL('image/png');
+      const isLandscape = canvas.width >= canvas.height;
+      const pdf = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 6;
+      const fitWidth = pageWidth - margin * 2;
+      const fitHeight = pageHeight - margin * 2;
+      const ratio = Math.min(fitWidth / canvas.width, fitHeight / canvas.height);
+      const imgWidth = canvas.width * ratio;
+      const imgHeight = canvas.height * ratio;
+      const x = (pageWidth - imgWidth) / 2;
+      const y = (pageHeight - imgHeight) / 2;
+      pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight, undefined, 'FAST');
+      const filename = `${(cv?.full_name || 'cv-player11').trim().replace(/\s+/g, '-')}.pdf`;
+      pdf.save(filename);
+    } finally {
       setPrinting(false);
-    }, 100);
+    }
+  };
+
+  const handleDownloadImage = async (format: 'png' | 'jpg') => {
+    setPrinting(true);
+    try {
+      const canvas = await captureCvCanvas();
+      if (!canvas) return;
+      const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+      const quality = format === 'png' ? undefined : 0.95;
+      const imageData = canvas.toDataURL(mime, quality);
+      const link = document.createElement('a');
+      const base = (cv?.full_name || 'cv-player11').trim().replace(/\s+/g, '-');
+      link.href = imageData;
+      link.download = `${base}.${format}`;
+      link.click();
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const handleShare = async () => {
@@ -112,10 +174,31 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     setShowShareMenu(false);
   };
 
+  const handleFacebook = () => {
+    const url = getShareUrl();
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+    setShowShareMenu(false);
+  };
+
   const handleOpenLink = () => {
     window.open(getShareUrl(), '_blank');
     setShowShareMenu(false);
   };
+
+  useEffect(() => {
+    if (!isPublic || !cv) return;
+    const key = `cv-view-logged-${cv.id}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    supabase.from('cv_view_events').insert({
+      cv_id: cv.id,
+      owner_user_id: cv.user_id,
+      source: 'public_link',
+      viewer_user_agent: navigator.userAgent,
+    }).then(() => {
+      // Fire and forget: tracking should never block public access
+    });
+  }, [isPublic, cv]);
 
   if (loading) {
     return (
@@ -217,6 +300,22 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
                 {printing ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 <span className="hidden sm:inline">Télécharger PDF</span>
               </button>
+              <button
+                onClick={() => handleDownloadImage('png')}
+                disabled={printing}
+                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-3 py-2 rounded-xl transition"
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">PNG</span>
+              </button>
+              <button
+                onClick={() => handleDownloadImage('jpg')}
+                disabled={printing}
+                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-3 py-2 rounded-xl transition"
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">JPG</span>
+              </button>
 
               {/* Share */}
               <div className="relative" ref={shareRef}>
@@ -236,6 +335,13 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
                     >
                       <MessageCircle className="w-4 h-4 text-green-400" />
                       Partager sur WhatsApp
+                    </button>
+                    <button
+                      onClick={handleFacebook}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-sm"
+                    >
+                      <Facebook className="w-4 h-4 text-blue-400" />
+                      Partager sur Facebook
                     </button>
                     <button
                       onClick={handleCopyLink}
@@ -285,6 +391,13 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
                 >
                   <MessageCircle className="w-4 h-4" />
                   WhatsApp
+                </button>
+                <button
+                  onClick={handleFacebook}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition"
+                >
+                  <Facebook className="w-4 h-4" />
+                  Facebook
                 </button>
               </div>
             </div>

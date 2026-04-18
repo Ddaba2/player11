@@ -1,6 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SportCV, CareerEntry } from '../types/cv';
-import Player11Logo from './Logo';
 import {
   Play,
   Image as ImageIcon,
@@ -68,6 +68,7 @@ function careerRecencyScore(entry: CareerEntry): number {
 }
 
 export default function CVPreview({ cv }: CVPreviewProps) {
+  const [isMobile, setIsMobile] = useState(false);
   const age = calcAge(cv.date_of_birth);
   const videos = cv.video_links ?? [];
   const photos = cv.action_photos ?? [];
@@ -76,6 +77,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
   );
 
   const sportLabel = (cv.sport || 'Sport').toUpperCase();
+
+  useEffect(() => {
+    const sync = () => setIsMobile(window.innerWidth < 900);
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, []);
 
   return (
     <div
@@ -110,96 +118,25 @@ export default function CVPreview({ cv }: CVPreviewProps) {
 
         <div
           style={{
-            padding: '28px 28px 32px',
+            padding: isMobile ? '14px 12px 14px' : '20px 24px 20px',
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: '24px',
-            alignItems: 'stretch',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '10px' : '16px',
+            alignItems: isMobile ? 'center' : 'flex-start',
           }}
         >
           {/* Contact — haut gauche */}
-          <div
-            style={{
-              background: 'rgba(127, 29, 29, 0.35)',
-              border: '2px solid #b91c1c',
-              borderRadius: '14px',
-              padding: '16px 18px',
-              flex: '1 1 200px',
-              maxWidth: '280px',
-              minWidth: '200px',
-            }}
-          >
-            <h3
-              style={{
-                color: '#fecaca',
-                fontSize: '10px',
-                fontWeight: 900,
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                margin: '0 0 12px',
-                paddingBottom: '10px',
-                borderBottom: '1px solid rgba(248, 113, 113, 0.35)',
-              }}
-            >
-              Contact
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {cv.email ? (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <Mail size={14} color="#f87171" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ color: '#e2e8f0', fontSize: '11px', wordBreak: 'break-all', lineHeight: 1.45 }}>
-                    {cv.email}
-                  </span>
-                </div>
-              ) : null}
-              {cv.phone ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Phone size={14} color="#f87171" style={{ flexShrink: 0 }} />
-                  <span style={{ color: '#e2e8f0', fontSize: '11px' }}>{cv.phone}</span>
-                </div>
-              ) : null}
-              {(cv.address || '').trim() ? (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <MapPin size={14} color="#f87171" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ color: '#e2e8f0', fontSize: '11px', lineHeight: 1.45, whiteSpace: 'pre-line' }}>
-                    {cv.address.trim()}
-                  </span>
-                </div>
-              ) : null}
-              {cv.instagram ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Instagram size={14} color="#f87171" style={{ flexShrink: 0 }} />
-                  <span style={{ color: '#e2e8f0', fontSize: '11px', wordBreak: 'break-all' }}>
-                    {cv.instagram.startsWith('@') ? cv.instagram : `@${cv.instagram}`}
-                  </span>
-                </div>
-              ) : null}
-              {cv.twitter ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Twitter size={14} color="#f87171" style={{ flexShrink: 0 }} />
-                  <span style={{ color: '#e2e8f0', fontSize: '11px', wordBreak: 'break-all' }}>
-                    {cv.twitter.startsWith('@') ? cv.twitter : `@${cv.twitter}`}
-                  </span>
-                </div>
-              ) : null}
-              {!cv.email && !cv.phone && !(cv.address || '').trim() && !cv.instagram && !cv.twitter ? (
-                <span style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic' }}>
-                  Coordonnées à compléter
-                </span>
-              ) : null}
-            </div>
-          </div>
-
           {/* Photo */}
-          <div style={{ flexShrink: 0 }}>
+          <div style={{ flexShrink: 0, paddingTop: isMobile ? '0px' : '8px', width: isMobile ? 'auto' : '168px' }}>
             {cv.photo_url ? (
               <img
                 src={cv.photo_url}
                 alt={cv.full_name}
                 style={{
-                  width: '148px',
-                  height: '168px',
+                  width: isMobile ? '112px' : '144px',
+                  height: isMobile ? '132px' : '168px',
                   objectFit: 'cover',
+                  objectPosition: 'center top',
                   borderRadius: '14px',
                   border: '3px dashed rgba(185, 28, 28, 0.95)',
                   boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
@@ -209,8 +146,8 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             ) : (
               <div
                 style={{
-                  width: '148px',
-                  height: '168px',
+                  width: '128px',
+                  height: '150px',
                   borderRadius: '14px',
                   background: 'rgba(127, 29, 29, 0.2)',
                   border: '3px dashed rgba(185, 28, 28, 0.85)',
@@ -226,38 +163,18 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           </div>
 
           {/* Bloc identité (maquette encadrée) + statistiques */}
-          <div style={{ flex: '1 1 280px', minWidth: '260px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap', marginBottom: '18px' }}>
-              <div style={{ width: '72px', minWidth: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Player11Logo width={72} height={72} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <span
-                  style={{
-                    background: 'rgba(127, 29, 29, 0.95)',
-                    color: '#fff',
-                    padding: '6px 16px',
-                    borderRadius: '10px',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    letterSpacing: '2px',
-                    textTransform: 'uppercase',
-                    border: '1px solid rgba(0,0,0,0.2)',
-                    display: 'inline-block',
-                  }}
-                >
-                  {sportLabel}
-                </span>
-              </div>
+          <div style={{ flex: '1 1 auto', minWidth: isMobile ? '0px' : '260px', width: '100%' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px' }}>{sportLabel}</span>
             </div>
 
             <h1
               style={{
                 color: '#fff',
-                fontSize: 'clamp(28px, 4vw, 40px)',
+                fontSize: isMobile ? '36px' : 'clamp(24px, 3.6vw, 34px)',
                 fontWeight: 900,
                 lineHeight: 1.05,
-                margin: '0 0 8px',
+                margin: '0 0 6px',
                 textTransform: 'uppercase',
                 letterSpacing: '-0.02em',
               }}
@@ -265,7 +182,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
               {cv.full_name || 'Nom complet'}
             </h1>
 
-            <p style={{ margin: '0 0 14px', fontSize: '15px', fontWeight: 600, lineHeight: 1.4 }}>
+            <p style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 600, lineHeight: 1.3 }}>
               <span style={{ color: '#94a3b8' }}>{cv.position || 'Poste'}</span>
               {cv.position && cv.current_club ? (
                 <span style={{ color: '#64748b', margin: '0 6px' }}>·</span>
@@ -273,7 +190,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
               <span style={{ color: '#fb923c' }}>{cv.current_club || ''}</span>
             </p>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
               {age != null ? (
                 <IdentityPill icon={<User size={14} />} text={`${age} ans`} />
               ) : null}
@@ -284,28 +201,60 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                 <IdentityPill icon={<Star size={14} color="#fbbf24" />} text={dominantShort(cv.dominant_side)} />
               ) : null}
             </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+              {cv.email ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px' }}>
+                  <Mail size={13} color="#f87171" />{cv.email}
+                </span>
+              ) : null}
+              {cv.phone ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px' }}>
+                  <Phone size={13} color="#f87171" />{cv.phone}
+                </span>
+              ) : null}
+              {cv.instagram ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px' }}>
+                  <Instagram size={13} color="#f87171" />{cv.instagram.startsWith('@') ? cv.instagram : `@${cv.instagram}`}
+                </span>
+              ) : null}
+              {cv.twitter ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px' }}>
+                  <Twitter size={13} color="#f87171" />{cv.twitter.startsWith('@') ? cv.twitter : `@${cv.twitter}`}
+                </span>
+              ) : null}
+              {(cv.address || '').trim() ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '11px' }}>
+                  <MapPin size={13} color="#f87171" />{cv.address.trim().slice(0, 42)}
+                </span>
+              ) : null}
+            </div>
 
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                gap: '12px',
+                gap: '8px',
+                width: isMobile ? '100%' : '90%',
+                margin: isMobile ? '0' : '0 auto',
               }}
             >
               <MetricBox
                 icon={<ClipboardList size={22} color="#f87171" />}
                 label="Matchs joués"
                 value={cv.matches_played ?? 0}
+                compact={isMobile}
               />
               <MetricBox
                 icon={<Target size={22} color="#f87171" />}
                 label="Buts"
                 value={cv.goals ?? 0}
+                compact={isMobile}
               />
               <MetricBox
                 icon={<Handshake size={22} color="#f87171" />}
                 label="Passes décisives"
                 value={cv.assists ?? 0}
+                compact={isMobile}
               />
             </div>
           </div>
@@ -313,13 +262,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       </div>
 
       {/* Corps */}
-      <div style={{ display: 'flex', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
         <div
           style={{
-            width: '320px',
+            width: isMobile ? '100%' : '320px',
             flexShrink: 0,
             background: '#0f172a',
-            padding: '28px 20px',
+            padding: isMobile ? '18px 14px' : '28px 20px',
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100%',
@@ -343,7 +292,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
 
           {(cv.skills ?? []).length > 0 ? (
             <Section title="Style de jeu" light>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
                 {(cv.skills ?? []).slice(0, 6).map(skill => (
                   <span
                     key={skill.id}
@@ -351,10 +300,11 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                       color: '#fecaca',
                       border: '1px solid rgba(248,113,113,0.45)',
                       background: 'rgba(127, 29, 29, 0.35)',
-                      borderRadius: '999px',
-                      padding: '5px 10px',
-                      fontSize: '10px',
+                      borderRadius: '10px',
+                      padding: '7px 10px',
+                      fontSize: '11px',
                       fontWeight: 700,
+                      textAlign: 'center',
                     }}
                   >
                     {skill.name}
@@ -448,7 +398,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           </div>
         </div>
 
-        <div style={{ flex: 1, background: '#f1f5f9', padding: '28px 32px' }}>
+        <div style={{ flex: 1, background: '#f1f5f9', padding: isMobile ? '16px 14px' : '28px 32px' }}>
           {sortedCareer.length > 0 ? (
             <Section title="Parcours professionnel">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -541,11 +491,6 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                           </p>
                         ) : null}
                         <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
-                          {(entry.matches_played != null || entry.matches_started != null || entry.minutes_played != null) ? (
-                            <p style={{ color: '#475569', fontSize: '10px', margin: 0 }}>
-                              {`Temps de jeu: ${entry.matches_played ?? 0} MJ • ${entry.matches_started ?? 0} Tit • ${entry.minutes_played ?? 0} min`}
-                            </p>
-                          ) : null}
                           {(entry.yellow_cards != null || entry.red_cards != null) ? (
                             <p style={{ color: '#475569', fontSize: '10px', margin: 0 }}>
                               {`Discipline: ${entry.yellow_cards ?? 0} jaunes • ${entry.red_cards ?? 0} rouges`}
@@ -614,7 +559,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       <div
         style={{
           background: '#0f172a',
-          padding: '12px 32px',
+          padding: isMobile ? '10px 14px' : '12px 32px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -698,28 +643,28 @@ function StatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricBox({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+function MetricBox({ icon, label, value, compact = false }: { icon: ReactNode; label: string; value: number; compact?: boolean }) {
   return (
     <div
       style={{
         background: 'rgba(15, 23, 42, 0.55)',
         border: '1px solid rgba(248, 113, 113, 0.35)',
-        borderRadius: '12px',
-        padding: '12px 10px',
+        borderRadius: '10px',
+        padding: compact ? '7px 6px' : '8px 8px',
         textAlign: 'center',
-        minHeight: '88px',
+        minHeight: compact ? '66px' : '72px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '6px',
+        gap: '4px',
       }}
     >
       <span style={{ display: 'flex' }}>{icon}</span>
-      <span style={{ color: '#cbd5e1', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+      <span style={{ color: '#cbd5e1', fontSize: compact ? '7px' : '8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.35px' }}>
         {label}
       </span>
-      <span style={{ color: '#fff', fontSize: '22px', fontWeight: 900 }}>{value}</span>
+      <span style={{ color: '#fff', fontSize: compact ? '14px' : '16px', fontWeight: 900 }}>{value}</span>
     </div>
   );
 }

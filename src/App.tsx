@@ -62,6 +62,10 @@ function AppRouter() {
     );
   }
 
+  if (publicCvId && !user && page === 'view') {
+    return <CVView cvId={publicCvId} onNavigate={navigate} isPublic />;
+  }
+
   if (!user) {
     if (page === 'register') return <Register onNavigate={navigate} />;
     return <Login onNavigate={navigate} />;

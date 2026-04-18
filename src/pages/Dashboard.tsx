@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { SportCV } from '../types/cv';
-import { Plus, Trophy, LogOut, Eye, CreditCard as Edit3, Trash2, User } from 'lucide-react';
+import { Plus, Trophy, LogOut, Eye, CreditCard as Edit3, Trash2, User, Bell } from 'lucide-react';
 import Player11Logo from '../components/Logo';
 
 interface DashboardProps {
@@ -12,11 +12,13 @@ interface DashboardProps {
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const { user, signOut } = useAuth();
   const [cvs, setCvs] = useState<SportCV[]>([]);
+  const [viewEvents, setViewEvents] = useState<Array<{ id: string; cv_id: string; viewed_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCVs();
+    fetchViewEvents();
   }, []);
 
   const fetchCVs = async () => {
@@ -35,6 +37,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     await supabase.from('sport_cvs').delete().eq('id', id);
     setCvs(prev => prev.filter(cv => cv.id !== id));
     setDeleting(null);
+  };
+
+  const fetchViewEvents = async () => {
+    const { data } = await supabase
+      .from('cv_view_events')
+      .select('id,cv_id,viewed_at')
+      .eq('owner_user_id', user!.id)
+      .order('viewed_at', { ascending: false })
+      .limit(10);
+    setViewEvents(data ?? []);
   };
 
   const getSportEmoji = (sport: string) => {
@@ -71,6 +83,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <div className="hidden sm:flex items-center gap-2 text-slate-400 text-sm">
               <User className="w-4 h-4" />
               <span>{displayUsername}</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-slate-300 text-sm bg-slate-800/70 border border-slate-700/60 px-3 py-2 rounded-lg">
+              <Bell className="w-4 h-4 text-amber-400" />
+              <span>{viewEvents.length} vue{viewEvents.length > 1 ? 's' : ''} récente{viewEvents.length > 1 ? 's' : ''}</span>
             </div>
             <button
               onClick={signOut}
@@ -178,6 +194,21 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {viewEvents.length > 0 && (
+          <div className="mt-8 bg-slate-800/50 border border-slate-700/60 rounded-2xl p-5">
+            <h2 className="text-white font-bold flex items-center gap-2 mb-3">
+              <Bell className="w-4 h-4 text-amber-400" /> Notifications de vues
+            </h2>
+            <div className="space-y-2">
+              {viewEvents.slice(0, 5).map(event => (
+                <div key={event.id} className="text-sm text-slate-300 bg-slate-900/50 rounded-lg px-3 py-2 border border-slate-700/50">
+                  Quelqu'un a ouvert ton lien CV le {new Date(event.viewed_at).toLocaleString('fr-FR')}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
