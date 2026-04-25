@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -6,53 +7,23 @@ import Dashboard from './pages/Dashboard';
 import CVEditor from './pages/CVEditor';
 import CVView from './pages/CVView';
 
-type Page = 'login' | 'register' | 'dashboard' | 'editor' | 'view';
-
 function AppRouter() {
   const { user, loading } = useAuth();
-  const [page, setPage] = useState<Page>('login');
-  const [cvId, setCvId] = useState<string | undefined>();
-  const [publicCvId, setPublicCvId] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
 
+  // Gestion des paramètres URL hérités (cv=... ou slug=...)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const cv = params.get('cv');
+    const slug = params.get('slug');
+
     if (cv) {
-      setPublicCvId(cv);
-      setPage('view');
-      setCvId(cv);
+      navigate(`/view/${cv}`, { replace: true });
+    } else if (slug) {
+      navigate(`/view/${slug}`, { replace: true });
     }
-  }, []);
-
-  useEffect(() => {
-    if (!loading && !publicCvId) {
-      if (user && (page === 'login' || page === 'register')) {
-        setPage('dashboard');
-      } else if (!user && page !== 'login' && page !== 'register') {
-        setPage('login');
-      }
-    }
-  }, [user, loading]);
-
-  const navigate = (newPage: string, id?: string) => {
-    if (newPage === 'view' || newPage === 'editor') {
-      setCvId(id);
-    }
-    if (newPage === 'editor' && !id) {
-      setCvId(undefined);
-    }
-    setPage(newPage as Page);
-
-    if (newPage === 'view' && id) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('cv', id);
-      window.history.pushState({}, '', url.toString());
-    } else if (newPage !== 'view') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('cv');
-      window.history.pushState({}, '', url.toString());
-    }
-  };
+  }, [location, navigate]);
 
   if (loading) {
     return (
@@ -62,24 +33,58 @@ function AppRouter() {
     );
   }
 
-  if (publicCvId && !user && page === 'view') {
-    return <CVView cvId={publicCvId} onNavigate={navigate} isPublic />;
-  }
+  return (
+    <Routes>
+      {/* Routes publiques */}
+      <Route 
+        path="/login" 
+        element={!user ? <Login onNavigate={(p, id) => navigate(id ? `/${p}/${id}` : `/${p}`)} /> : <Navigate to="/dashboard" replace />} 
+      />
+      <Route 
+        path="/register" 
+        element={!user ? <Register onNavigate={(p) => navigate(`/${p}`)} /> : <Navigate to="/dashboard" replace />} 
+      />
 
-  if (!user) {
-    if (page === 'register') return <Register onNavigate={navigate} />;
-    return <Login onNavigate={navigate} />;
-  }
+      {/* Routes privées */}
+      <Route 
+        path="/dashboard" 
+        element={user ? <Dashboard onNavigate={(p, id) => navigate(id ? `/${p}/${id}` : `/${p}`)} /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/editor" 
+        element={user ? <CVEditor onNavigate={(p, id) => navigate(id ? `/${p}/${id}` : `/${p}`)} /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/editor/:cvId" 
+        element={user ? <CVEditorWrapper onNavigate={(p, id) => navigate(id ? `/${p}/${id}` : `/${p}`)} /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/view/:cvId" 
+        element={user ? <CVViewWrapper onNavigate={(p, id) => navigate(id ? `/${p}/${id}` : `/${p}`)} /> : <Navigate to="/login" replace />} 
+      />
+      {/* Route publique spéciale pour le générateur PDF (Option Puppeteer) */}
+      <Route 
+        path="/cv-print/:cvId" 
+        element={<CVViewWrapper onNavigate={() => {}} isPublic={true} />} 
+      />
 
-  if (page === 'view' && (cvId || publicCvId)) {
-    return <CVView cvId={cvId ?? publicCvId!} onNavigate={navigate} />;
-  }
+      {/* Redirection par défaut */}
+      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+    </Routes>
+  );
+}
 
-  if (page === 'editor') {
-    return <CVEditor cvId={cvId} onNavigate={navigate} />;
-  }
+// Wrappers pour extraire les params car les composants existants attendent cvId en prop
+import { useParams } from 'react-router-dom';
 
-  return <Dashboard onNavigate={navigate} />;
+function CVEditorWrapper({ onNavigate }: { onNavigate: (p: string, id?: string) => void }) {
+  const { cvId } = useParams();
+  return <CVEditor cvId={cvId} onNavigate={onNavigate} />;
+}
+
+function CVViewWrapper({ onNavigate, isPublic = false }: { onNavigate: (p: string, id?: string) => void, isPublic?: boolean }) {
+  const { cvId } = useParams();
+  return <CVView cvId={cvId!} onNavigate={onNavigate} isPublic={isPublic} />;
 }
 
 export default function App() {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SportCV, CareerEntry } from '../types/cv';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   Play,
   Image as ImageIcon,
@@ -77,6 +78,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
   );
 
   const sportLabel = (cv.sport || 'Sport').toUpperCase();
+  const publicUrl = `${window.location.origin}/cv/${cv.public_slug || cv.id}`;
 
   useEffect(() => {
     const sync = () => setIsMobile(window.innerWidth < 900);
@@ -89,8 +91,46 @@ export default function CVPreview({ cv }: CVPreviewProps) {
     <div
       id="cv-print-area"
       className="cv-container bg-slate-950"
-      style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}
+      style={{ 
+        fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+        width: '100%',
+        margin: '0 auto',
+        position: 'relative'
+      }}
     >
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            background: white !important;
+          }
+          #cv-print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: visible !important;
+          }
+          #cv-print-area * {
+            visibility: visible !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* Bandeau : fond rayé + barre accent */}
       <div
         style={{
@@ -122,19 +162,18 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             display: 'flex',
             flexDirection: isMobile ? 'column' : 'row',
             gap: isMobile ? '10px' : '16px',
-            alignItems: isMobile ? 'center' : 'flex-start',
+            alignItems: isMobile ? 'center' : 'stretch',
           }}
         >
-          {/* Contact — haut gauche */}
           {/* Photo */}
-          <div style={{ flexShrink: 0, paddingTop: isMobile ? '0px' : '8px', width: isMobile ? 'auto' : '168px' }}>
+          <div style={{ flexShrink: 0, width: isMobile ? 'auto' : '184px', display: 'flex' }}>
             {cv.photo_url ? (
               <img
                 src={cv.photo_url}
                 alt={cv.full_name}
                 style={{
-                  width: isMobile ? '112px' : '144px',
-                  height: isMobile ? '132px' : '168px',
+                  width: isMobile ? '112px' : '100%',
+                  height: isMobile ? '132px' : '100%',
                   objectFit: 'cover',
                   objectPosition: 'center top',
                   borderRadius: '14px',
@@ -162,7 +201,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             )}
           </div>
 
-          {/* Bloc identité (maquette encadrée) + statistiques */}
+          {/* Bloc identité + statistiques */}
           <div style={{ flex: '1 1 auto', minWidth: isMobile ? '0px' : '260px', width: '100%' }}>
             <div style={{ marginBottom: '8px' }}>
               <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px' }}>{sportLabel}</span>
@@ -569,21 +608,32 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         <span style={{ color: '#475569', fontSize: '10px' }}>
           Profil généré avec Player11 — 2026
         </span>
-        <span
-          style={{
-            background: 'rgba(127,29,29,0.35)',
-            border: '1px solid #b91c1c',
-            color: '#fecaca',
-            padding: '3px 12px',
-            borderRadius: '16px',
-            fontSize: '10px',
-            fontWeight: 700,
-            letterSpacing: '1px',
-            textTransform: 'uppercase',
-          }}
-        >
-          {cv.sport || 'Sport'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="no-print" style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>
+            Scannez pour voir<br/>la version numérique
+          </div>
+          <QRCodeCanvas 
+            value={publicUrl} 
+            size={48} 
+            level="M" 
+            includeMargin={false}
+          />
+          <span
+            style={{
+              background: 'rgba(127,29,29,0.35)',
+              border: '1px solid #b91c1c',
+              color: '#fecaca',
+              padding: '3px 12px',
+              borderRadius: '16px',
+              fontSize: '10px',
+              fontWeight: 700,
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+            }}
+          >
+            {cv.sport || 'Sport'}
+          </span>
+        </div>
       </div>
     </div>
   );

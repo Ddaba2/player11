@@ -78,6 +78,8 @@ export interface SportCV {
   action_photos: ActionPhoto[];
   logo_url: string | null;
   is_public: boolean;
+  public_slug: string | null;
+  theme: 'classic' | 'modern' | 'scout';
   created_at: string;
   updated_at: string;
 }

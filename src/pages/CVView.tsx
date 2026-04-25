@@ -1,12 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { SportCV } from '../types/cv';
-import CVPreview from '../components/CVPreview';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import CVRenderer from '../components/CVRenderer';
 import {
   ArrowLeft, Download, Share2, Trophy, Copy, Check,
-  MessageCircle, ExternalLink, Loader, RefreshCw, Facebook, Image as ImageIcon,
+  MessageCircle, ExternalLink, RefreshCw, Facebook
 } from 'lucide-react';
 import Player11Logo from '../components/Logo';
 
@@ -27,6 +25,7 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   const [refetching, setRefetching] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
   const prevCvIdRef = useRef<string | null>(null);
+  const cvRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const cvChanged = prevCvIdRef.current !== cvId;
@@ -41,25 +40,38 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
       setRefetching(true);
     }
 
-    supabase
-      .from('sport_cvs')
-      .select('*')
-      .eq('id', cvId)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          setNotFound(true);
-          setCv(null);
-        } else if (data) {
-          setCv(data as SportCV);
-          setNotFound(false);
-        } else {
-          setNotFound(true);
-          setCv(null);
-        }
-        if (fullScreenLoad) setLoading(false);
-        setRefetching(false);
-      });
+    // Try to fetch by ID first, then by slug if not found
+    const fetchCV = async () => {
+      let { data, error } = await supabase
+        .from('sport_cvs')
+        .select('*')
+        .eq('id', cvId)
+        .maybeSingle();
+
+      // If not found by ID, try by public_slug
+      if (!data && !error) {
+        ({ data, error } = await supabase
+          .from('sport_cvs')
+          .select('*')
+          .eq('public_slug', cvId)
+          .maybeSingle());
+      }
+
+      if (error) {
+        setNotFound(true);
+        setCv(null);
+      } else if (data) {
+        setCv(data as SportCV);
+        setNotFound(false);
+      } else {
+        setNotFound(true);
+        setCv(null);
+      }
+      if (fullScreenLoad) setLoading(false);
+      setRefetching(false);
+    };
+
+    fetchCV();
   }, [cvId, refreshTick]);
 
   const handleRefreshCv = () => {
@@ -76,74 +88,11 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const getShareUrl = () => `${window.location.origin}${window.location.pathname}?cv=${cvId}`;
-
-  const captureCvCanvas = async () => {
-    const source = document.getElementById('cv-print-area');
-    if (!source) return null;
-
-    try {
-      if ('fonts' in document) {
-        await (document as Document & { fonts: FontFaceSet }).fonts.ready;
-      }
-      const rect = source.getBoundingClientRect();
-      const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
-      const canvas = await html2canvas(source, {
-        scale,
-        backgroundColor: '#0f172a',
-        useCORS: true,
-        logging: false,
-        width: Math.ceil(rect.width),
-        height: Math.ceil(rect.height),
-      });
-      return canvas;
-    } catch {
-      return null;
-    }
-  };
-
-  const handleDownload = async () => {
-    setPrinting(true);
-    try {
-      const canvas = await captureCvCanvas();
-      if (!canvas) return;
-      const imgData = canvas.toDataURL('image/png');
-      const isLandscape = canvas.width >= canvas.height;
-      const pdf = new jsPDF(isLandscape ? 'landscape' : 'portrait', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 6;
-      const fitWidth = pageWidth - margin * 2;
-      const fitHeight = pageHeight - margin * 2;
-      const ratio = Math.min(fitWidth / canvas.width, fitHeight / canvas.height);
-      const imgWidth = canvas.width * ratio;
-      const imgHeight = canvas.height * ratio;
-      const x = (pageWidth - imgWidth) / 2;
-      const y = (pageHeight - imgHeight) / 2;
-      pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight, undefined, 'FAST');
-      const filename = `${(cv?.full_name || 'cv-player11').trim().replace(/\s+/g, '-')}.pdf`;
-      pdf.save(filename);
-    } finally {
-      setPrinting(false);
-    }
-  };
-
-  const handleDownloadImage = async (format: 'png' | 'jpg') => {
-    setPrinting(true);
-    try {
-      const canvas = await captureCvCanvas();
-      if (!canvas) return;
-      const mime = format === 'png' ? 'image/png' : 'image/jpeg';
-      const quality = format === 'png' ? undefined : 0.95;
-      const imageData = canvas.toDataURL(mime, quality);
-      const link = document.createElement('a');
-      const base = (cv?.full_name || 'cv-player11').trim().replace(/\s+/g, '-');
-      link.href = imageData;
-      link.download = `${base}.${format}`;
-      link.click();
-    } finally {
-      setPrinting(false);
-    }
+  const getShareUrl = () => {
+    // Use public_slug if available, fallback to cvId
+    const identifier = cv?.public_slug || cvId;
+    const paramName = cv?.public_slug ? 'slug' : 'cv';
+    return `${window.location.origin}${window.location.pathname}?${paramName}=${identifier}`;
   };
 
   const handleShare = async () => {
@@ -230,21 +179,43 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
 
   return (
     <>
-      {/* Print styles injected via <style> */}
+      {/* Styles d'impression optimisés */}
       <style>{`
         @media print {
-          body * { visibility: hidden !important; }
-          #cv-print-area, #cv-print-area * { visibility: visible !important; }
-          #cv-print-area {
-            position: fixed !important;
-            left: 0 !important; top: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
+          /* Masquer tout ce qui n'est pas le CV */
+          body * { 
+            visibility: hidden !important; 
           }
+          
+          /* Rendre visible uniquement la zone du CV */
+          #cv-print-area, #cv-print-area * { 
+            visibility: visible !important; 
+          }
+          
+          /* Positionner le CV en haut à gauche de la page physique */
+          #cv-print-area {
+            visibility: visible !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important; /* Largeur A4 exacte */
+            height: 297mm !important; /* Hauteur A4 exacte */
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+
+          /* Forcer les fonds colorés et désactiver les marges navigateur */
           @page {
-            margin: 0;
             size: A4;
+            margin: 0;
+          }
+          
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
         }
       `}</style>
@@ -291,30 +262,12 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
                 <span className="hidden sm:inline">Actualiser</span>
               </button>
 
-              {/* Download */}
               <button
-                onClick={handleDownload}
-                disabled={printing}
+                onClick={() => window.print()}
                 className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition"
               >
-                {printing ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                <span className="hidden sm:inline">Télécharger PDF</span>
-              </button>
-              <button
-                onClick={() => handleDownloadImage('png')}
-                disabled={printing}
-                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-3 py-2 rounded-xl transition"
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">PNG</span>
-              </button>
-              <button
-                onClick={() => handleDownloadImage('jpg')}
-                disabled={printing}
-                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-3 py-2 rounded-xl transition"
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">JPG</span>
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Exporter PDF</span>
               </button>
 
               {/* Share */}
@@ -366,8 +319,8 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
 
         {/* CV Preview */}
         <div className="max-w-5xl mx-auto px-0 sm:px-6 py-0 sm:py-8">
-          <div className="bg-white shadow-2xl sm:rounded-2xl overflow-hidden">
-            <CVPreview cv={cv} />
+          <div ref={cvRef} className="bg-white shadow-2xl sm:rounded-2xl overflow-hidden">
+            <CVRenderer cv={cv} />
           </div>
 
           {/* Share prompt at bottom */}

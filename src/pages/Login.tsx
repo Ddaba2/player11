@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Link2 } from 'lucide-react';
 import Player11Logo from '../components/Logo';
 
 interface LoginProps {
@@ -14,6 +14,17 @@ export default function Login({ onNavigate }: LoginProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasPublicLink, setHasPublicLink] = useState(false);
+
+  // Détecter si un lien public est présent
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cv = params.get('cv');
+    const slug = params.get('slug');
+    if (cv || slug) {
+      setHasPublicLink(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +50,27 @@ export default function Login({ onNavigate }: LoginProps) {
 
         <div className="bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 shadow-xl">
           <h2 className="text-xl font-bold text-white mb-6">Connexion</h2>
+
+          {/* Message si lien public détecté */}
+          {hasPublicLink && (
+            <div className="bg-blue-500/20 border border-blue-500/50 text-blue-300 rounded-xl px-4 py-3 mb-5 text-sm">
+              <div className="flex items-start gap-3">
+                <Link2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold mb-1">CV partagé détecté</p>
+                  <p className="opacity-90">
+                    Connectez-vous pour consulter ce CV sportif. Si vous n'avez pas de compte, 
+                    <button
+                      onClick={() => onNavigate('register')}
+                      className="text-blue-200 underline hover:text-blue-100 ml-1"
+                    >
+                      créez-en un gratuitement
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-500/20 border border-red-500/50 text-red-300 rounded-xl px-4 py-3 mb-5 text-sm">
