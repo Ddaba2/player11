@@ -81,14 +81,11 @@ export default function CVPreview({ cv }: CVPreviewProps) {
   const publicUrl = `${window.location.origin}/cv/${cv.public_slug || cv.id}`;
 
   useEffect(() => {
-    const sync = () => setIsMobile(window.innerWidth < 900);
+    const sync = () => setIsMobile(window.innerWidth < 768);
     sync();
     window.addEventListener('resize', sync);
     return () => window.removeEventListener('resize', sync);
   }, []);
-
-  // Forcer l'affichage desktop pour cohérence mobile/PC
-  const displayAsMobile = false;
 
   return (
     <div
@@ -124,6 +121,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             margin: 0 !important;
             padding: 0 !important;
             visibility: visible !important;
+            overflow: hidden !important;
           }
           #cv-print-area * {
             visibility: visible !important;
@@ -131,11 +129,52 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           .no-print {
             display: none !important;
           }
+          .cv-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .cv-section-header {
+            page-break-after: avoid;
+          }
+        }
+        
+        @media screen and (max-width: 768px) {
+          #cv-print-area {
+            width: 100% !important;
+            height: auto !important;
+            min-height: 100vh !important;
+            overflow-x: hidden !important;
+          }
+          .cv-grid-3 {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .cv-flex-col-mobile {
+            flex-direction: column !important;
+          }
+          .cv-text-mobile {
+            font-size: 0.9em !important;
+          }
+        }
+        
+        .cv-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+          margin-bottom: 16px;
+        }
+        
+        .cv-section-header {
+          page-break-after: avoid;
+          font-weight: 700;
+        }
+        
+        .cv-no-break {
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
       `}</style>
 
       {/* Bandeau : fond rayé + barre accent */}
-      <div
+      <div className="cv-section cv-no-break"
         style={{
           background: `
             repeating-linear-gradient(
@@ -161,22 +200,22 @@ export default function CVPreview({ cv }: CVPreviewProps) {
 
         <div
           style={{
-            padding: '20px 24px 20px',
+            padding: isMobile ? '14px 12px 14px' : '20px 24px 20px',
             display: 'flex',
-            flexDirection: 'row',
-            gap: '16px',
-            alignItems: 'stretch',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '10px' : '16px',
+            alignItems: isMobile ? 'center' : 'stretch',
           }}
         >
           {/* Photo */}
-          <div style={{ flexShrink: 0, width: '184px', display: 'flex' }}>
+          <div style={{ flexShrink: 0, width: isMobile ? '120px' : '184px', display: 'flex' }}>
             {cv.photo_url ? (
               <img
                 src={cv.photo_url}
                 alt={cv.full_name}
                 style={{
-                  width: '100%',
-                  height: '100%',
+                  width: isMobile ? '120px' : '100%',
+                  height: isMobile ? '140px' : '100%',
                   objectFit: 'cover',
                   objectPosition: 'center top',
                   borderRadius: '14px',
@@ -213,7 +252,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             <h1
               style={{
                 color: '#fff',
-                fontSize: 'clamp(24px, 3.6vw, 34px)',
+                fontSize: isMobile ? '24px' : 'clamp(24px, 3.6vw, 34px)',
                 fontWeight: 900,
                 lineHeight: 1.05,
                 margin: '0 0 6px',
@@ -274,10 +313,10 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, minmax(0, 1fr))',
                 gap: '8px',
-                width: '90%',
-                margin: '0 auto',
+                width: isMobile ? '100%' : '90%',
+                margin: isMobile ? '0' : '0 auto',
               }}
             >
               <MetricBox
@@ -304,13 +343,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       </div>
 
       {/* Corps */}
-      <div style={{ display: 'flex', flexDirection: 'row', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
-        <div
+      <div className="cv-section" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
+        <div className="cv-section"
           style={{
-            width: '320px',
+            width: isMobile ? '100%' : '320px',
             flexShrink: 0,
             background: '#0f172a',
-            padding: '28px 20px',
+            padding: isMobile ? '18px 14px' : '28px 20px',
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100%',
@@ -440,7 +479,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           </div>
         </div>
 
-        <div style={{ flex: 1, background: '#f1f5f9', padding: '28px 32px' }}>
+        <div className="cv-section" style={{ flex: 1, background: '#f1f5f9', padding: isMobile ? '16px 14px' : '28px 32px' }}>
           {sortedCareer.length > 0 ? (
             <Section title="Parcours professionnel">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -598,13 +637,15 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         </div>
       </div>
 
-      <div
+      <div className="cv-section cv-no-break"
         style={{
           background: '#0f172a',
-          padding: '12px 32px',
+          padding: isMobile ? '10px 14px' : '12px 32px',
           display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: isMobile ? '10px' : '16px',
           borderTop: '2px solid #b91c1c',
         }}
       >

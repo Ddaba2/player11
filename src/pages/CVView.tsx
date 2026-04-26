@@ -20,8 +20,7 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [printing, setPrinting] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
+    const [refreshTick, setRefreshTick] = useState(0);
   const [refetching, setRefetching] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
   const prevCvIdRef = useRef<string | null>(null);
@@ -159,15 +158,14 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
             scale: 2,
             useCORS: true,
             logging: false,
-            width: 794, // Largeur A4 en pixels à 96 DPI
-            height: 1123 // Hauteur A4 en pixels à 96 DPI
+            width: 794,
+            height: 1123
           },
           jsPDF: { 
             unit: 'mm', 
             format: 'a4', 
             orientation: 'portrait' as const
-          },
-          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+          }
         };
 
         // Générer et télécharger le PDF
