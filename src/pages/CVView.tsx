@@ -134,6 +134,79 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     setShowShareMenu(false);
   };
 
+  const handleDownloadPDF = async () => {
+    // Vérifier si on est sur mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Sur mobile, utiliser html2pdf.js pour générer le PDF
+      try {
+        const element = document.getElementById('cv-print-area');
+        if (!element) {
+          alert('Impossible de générer le PDF : CV non trouvé');
+          return;
+        }
+
+        // Importer html2pdf.js dynamiquement
+        const html2pdf = (await import('html2pdf.js')).default;
+        
+        // Configurer les options pour un format A4 optimal
+        const opt = {
+          margin: 0,
+          filename: `${cv?.full_name || 'CV'}_Player11.pdf`,
+          image: { type: 'jpeg' as const, quality: 0.98 },
+          html2canvas: { 
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            width: 794, // Largeur A4 en pixels à 96 DPI
+            height: 1123 // Hauteur A4 en pixels à 96 DPI
+          },
+          jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait' as const
+          },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        };
+
+        // Générer et télécharger le PDF
+        await html2pdf().set(opt).from(element).save();
+      } catch (error) {
+        console.error('Erreur lors de la génération du PDF:', error);
+        // Fallback : ouvrir dans une nouvelle fenêtre et demander à l'utilisateur d'imprimer
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>CV - ${cv?.full_name || 'Player11'}</title>
+                <style>
+                  body { margin: 0; font-family: 'Inter', sans-serif; }
+                  @page { size: A4; margin: 0; }
+                  @media print { body { -webkit-print-color-adjust: exact; } }
+                </style>
+              </head>
+              <body>
+                ${document.getElementById('cv-print-area')?.outerHTML || ''}
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 500);
+        }
+      }
+    } else {
+      // Sur desktop, utiliser window.print() qui fonctionne bien
+      window.print();
+    }
+  };
+
   useEffect(() => {
     if (!isPublic || !cv) return;
     const key = `cv-view-logged-${cv.id}`;
@@ -263,11 +336,12 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
               </button>
 
               <button
-                onClick={() => window.print()}
+                onClick={handleDownloadPDF}
                 className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition"
               >
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Exporter PDF</span>
+                <span className="sm:hidden">PDF</span>
               </button>
 
               {/* Share */}
