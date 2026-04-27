@@ -134,22 +134,21 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   };
 
   const handleDownloadPDF = async () => {
-    // Vérifier si on est sur mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     
-    if (isMobile) {
-      // Sur mobile, utiliser html2pdf.js pour générer le PDF
-      try {
-        const element = document.getElementById('cv-print-area');
-        if (!element) {
-          alert('Impossible de générer le PDF : CV non trouvé');
-          return;
-        }
+    try {
+      const element = document.getElementById('cv-print-area');
+      if (!element) {
+        alert('Impossible de générer le PDF : CV non trouvé');
+        return;
+      }
 
-        // Importer html2pdf.js dynamiquement
+      // Détecter le navigateur et choisir la meilleure méthode
+      if (isMobile && !isSafari) {
+        // Chrome mobile, Firefox mobile - utiliser html2pdf.js
         const html2pdf = (await import('html2pdf.js')).default;
         
-        // Configurer les options pour un format A4 optimal
         const opt = {
           margin: 0,
           filename: `${cv?.full_name || 'CV'}_Player11.pdf`,
@@ -159,49 +158,176 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
             useCORS: true,
             logging: false,
             width: 794,
-            height: 1123
+            height: 1123,
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: 794,
+            windowHeight: 1123,
+            allowTaint: true,
+            foreignObjectRendering: false
           },
           jsPDF: { 
             unit: 'mm', 
             format: 'a4', 
-            orientation: 'portrait' as const
-          }
+            orientation: 'portrait' as const,
+            compress: true,
+            precision: 16
+          },
+          pagebreak: { mode: 'avoid-all' },
+          enableLinks: false,
+          floatPrecision: 16
         };
 
-        // Générer et télécharger le PDF
+        // Forcer les dimensions du conteneur
+        element.style.width = '794px';
+        element.style.height = '1123px';
+        element.style.overflow = 'hidden';
+        
         await html2pdf().set(opt).from(element).save();
-      } catch (error) {
-        console.error('Erreur lors de la génération du PDF:', error);
-        // Fallback : ouvrir dans une nouvelle fenêtre et demander à l'utilisateur d'imprimer
+        
+        // Restaurer les dimensions
+        element.style.width = '';
+        element.style.height = '';
+        element.style.overflow = '';
+        
+      } else if (isMobile && isSafari) {
+        // Safari mobile - utiliser la méthode d'ouverture dans une nouvelle fenêtre
         const printWindow = window.open('', '_blank');
         if (printWindow) {
+          const cvHTML = document.getElementById('cv-print-area')?.outerHTML || '';
           printWindow.document.write(`
             <!DOCTYPE html>
             <html>
               <head>
                 <title>CV - ${cv?.full_name || 'Player11'}</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
-                  body { margin: 0; font-family: 'Inter', sans-serif; }
-                  @page { size: A4; margin: 0; }
-                  @media print { body { -webkit-print-color-adjust: exact; } }
+                  body { 
+                    margin: 0; 
+                    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+                    background: white;
+                  }
+                  @page { 
+                    size: A4; 
+                    margin: 0; 
+                  }
+                  @media print { 
+                    body { 
+                      -webkit-print-color-adjust: exact !important; 
+                      print-color-adjust: exact !important;
+                      margin: 0 !important;
+                    }
+                    #cv-print-area {
+                      width: 210mm !important;
+                      height: 297mm !important;
+                      overflow: hidden !important;
+                    }
+                  }
+                  @media screen {
+                    body { padding: 20px; }
+                    #cv-print-area { 
+                      max-width: 100%; 
+                      margin: 0 auto;
+                      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    }
+                  }
                 </style>
               </head>
               <body>
-                ${document.getElementById('cv-print-area')?.outerHTML || ''}
+                ${cvHTML}
+                <script>
+                  // Auto-imprimer sur Safari mobile
+                  setTimeout(function() {
+                    if (window.print) {
+                      window.print();
+                    }
+                  }, 1000);
+                </script>
               </body>
             </html>
           `);
           printWindow.document.close();
-          printWindow.focus();
+          
+          // Afficher les instructions pour Safari
           setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 500);
+            alert('Sur Safari: Cliquez sur "Partager" puis "Imprimer" ou utilisez le menu du navigateur pour enregistrer en PDF.');
+          }, 1500);
         }
+      } else {
+        // Desktop - utiliser window.print()
+        window.print();
       }
-    } else {
-      // Sur desktop, utiliser window.print() qui fonctionne bien
-      window.print();
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      
+      // Fallback universel - ouvrir dans une nouvelle fenêtre
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const cvHTML = document.getElementById('cv-print-area')?.outerHTML || '';
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>CV - ${cv?.full_name || 'Player11'}</title>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body { 
+                  margin: 0; 
+                  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+                  background: white;
+                }
+                @page { 
+                  size: A4; 
+                  margin: 0; 
+                }
+                @media print { 
+                  body { 
+                    -webkit-print-color-adjust: exact !important; 
+                    print-color-adjust: exact !important;
+                    margin: 0 !important;
+                  }
+                  #cv-print-area {
+                    width: 210mm !important;
+                    height: 297mm !important;
+                    overflow: hidden !important;
+                  }
+                }
+                @media screen {
+                  body { padding: 20px; }
+                  #cv-print-area { 
+                    max-width: 100%; 
+                    margin: 0 auto;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                  }
+                }
+                .instructions {
+                  position: fixed;
+                  top: 10px;
+                  right: 10px;
+                  background: #f0f0f0;
+                  padding: 10px;
+                  border-radius: 5px;
+                  font-size: 14px;
+                  z-index: 1000;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="instructions">
+                <strong>Pour enregistrer en PDF:</strong><br>
+                • Chrome/Edge: Ctrl+P (Cmd+P) → "Enregistrer comme PDF"<br>
+                • Safari: Cmd+P → "PDF" → "Enregistrer"<br>
+                • Firefox: Ctrl+P → "PDF" → "Enregistrer"
+              </div>
+              ${cvHTML}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
     }
   };
 
