@@ -30,10 +30,9 @@ const calcAge = (dob: string | null) => {
 
 const getSportEmoji = (sport: string) => {
   const map: Record<string, string> = {
-    Football: '⚽', Basketball: '🏀', Tennis: '🎾', Rugby: '🏉',
-    Natation: '🏊', Athlétisme: '🏃', Handball: '🤾', Volleyball: '🏐',
-    Cyclisme: '🚴', Boxe: '🥊', Judo: '🥋', Karaté: '🥋',
-    Ski: '⛷️', Gymnastique: '🤸', Triathlon: '🏊', MMA: '🥊',
+    Football: '⚽',
+    Basketball: '🏀',
+    Handball: '🤾'
   };
   return map[sport] || '🏆';
 };
@@ -103,7 +102,9 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         position: 'relative',
         overflow: 'hidden',
         transform: useDesktopLayout && window.innerWidth < 768 ? `scale(${window.innerWidth / 794})` : 'none',
-        transformOrigin: 'top left'
+        transformOrigin: 'top left',
+        maxHeight: '1123px',
+        minHeight: 'auto'
       }}
     >
       {/* Print styles */}

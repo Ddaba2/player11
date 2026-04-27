@@ -149,6 +149,13 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         // Chrome mobile, Firefox mobile - utiliser html2pdf.js
         const html2pdf = (await import('html2pdf.js')).default;
         
+        // Calculer la hauteur réelle du contenu
+        const contentHeight = element.scrollHeight;
+        const a4HeightInPixels = 1123; // Hauteur A4 en pixels à 96 DPI
+        
+        // Utiliser la hauteur réelle mais limiter à une page A4
+        const targetHeight = Math.min(contentHeight, a4HeightInPixels);
+        
         const opt = {
           margin: 0,
           filename: `${cv?.full_name || 'CV'}_Player11.pdf`,
@@ -158,13 +165,14 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
             useCORS: true,
             logging: false,
             width: 794,
-            height: 1123,
+            height: targetHeight,
             scrollX: 0,
             scrollY: 0,
             windowWidth: 794,
-            windowHeight: 1123,
+            windowHeight: targetHeight,
             allowTaint: true,
-            foreignObjectRendering: false
+            foreignObjectRendering: false,
+            removeContainer: false
           },
           jsPDF: { 
             unit: 'mm', 
@@ -173,22 +181,37 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
             compress: true,
             precision: 16
           },
-          pagebreak: { mode: 'avoid-all' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
           enableLinks: false,
-          floatPrecision: 16
+          floatPrecision: 16,
+          html2pdf: {
+            image: { type: 'jpeg', quality: 0.98 },
+            pdf: {
+              compress: true
+            }
+          }
         };
 
-        // Forcer les dimensions du conteneur
+        // Forcer les dimensions exactes du conteneur
+        const originalWidth = element.style.width;
+        const originalHeight = element.style.height;
+        const originalOverflow = element.style.overflow;
+        
         element.style.width = '794px';
-        element.style.height = '1123px';
+        element.style.height = `${targetHeight}px`;
         element.style.overflow = 'hidden';
+        element.style.maxHeight = `${targetHeight}px`;
+        
+        // Attendre un peu que le style s'applique
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         await html2pdf().set(opt).from(element).save();
         
-        // Restaurer les dimensions
-        element.style.width = '';
-        element.style.height = '';
-        element.style.overflow = '';
+        // Restaurer les dimensions originales
+        element.style.width = originalWidth;
+        element.style.height = originalHeight;
+        element.style.overflow = originalOverflow;
+        element.style.maxHeight = '';
         
       } else if (isMobile && isSafari) {
         // Safari mobile - utiliser la méthode d'ouverture dans une nouvelle fenêtre
