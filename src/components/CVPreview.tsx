@@ -86,8 +86,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
     return () => window.removeEventListener('resize', sync);
   }, []);
 
-  // FORCER l'affichage desktop pour cohérence parfaite mobile/PC
-  const useDesktopLayout = true;
+  // Layout responsive : desktop sur PC, adapté sur mobile
 
   return (
     <div
@@ -95,15 +94,15 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       className="cv-container bg-slate-950"
       style={{ 
         fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-        width: useDesktopLayout ? '794px' : '100%',
-        maxWidth: useDesktopLayout ? '794px' : 'none',
-        minWidth: useDesktopLayout ? '320px' : 'auto',
+        width: isMobile ? '100%' : '794px',
+        maxWidth: isMobile ? '100%' : '794px',
+        minWidth: isMobile ? '320px' : '794px',
         margin: '0 auto',
         position: 'relative',
         overflow: 'hidden',
-        transform: useDesktopLayout && window.innerWidth < 768 ? `scale(${window.innerWidth / 794})` : 'none',
+        transform: 'none',
         transformOrigin: 'top left',
-        maxHeight: '1123px',
+        maxHeight: 'none',
         minHeight: 'auto'
       }}
     >
@@ -149,15 +148,37 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         
         @media screen and (max-width: 768px) {
           #cv-print-area {
-            width: 794px !important;
-            max-width: 794px !important;
-            min-width: 794px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 320px !important;
             height: auto !important;
-            overflow-x: auto !important;
+            overflow-x: hidden !important;
             overflow-y: auto !important;
           }
           body {
-            overflow-x: auto !important;
+            overflow-x: hidden !important;
+            background: #f1f5f9 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          html {
+            overflow-x: hidden !important;
+          }
+          .cv-mobile-stack {
+            flex-direction: column !important;
+          }
+          .cv-mobile-full {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .cv-mobile-center {
+            text-align: center !important;
+          }
+          .cv-mobile-grid-2 {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .cv-mobile-text-sm {
+            font-size: 0.9em !important;
           }
         }
         
@@ -204,16 +225,17 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         />
 
         <div
+          className={isMobile ? "cv-mobile-stack" : ""}
           style={{
-            padding: '20px 24px 20px',
+            padding: isMobile ? '14px 12px 14px' : '20px 24px 20px',
             display: 'flex',
-            flexDirection: 'row',
-            gap: '16px',
-            alignItems: 'stretch',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '10px' : '16px',
+            alignItems: isMobile ? 'center' : 'stretch',
           }}
         >
           {/* Photo */}
-          <div style={{ flexShrink: 0, width: '184px', display: 'flex' }}>
+          <div className={isMobile ? "cv-mobile-full cv-mobile-center" : ""} style={{ flexShrink: 0, width: isMobile ? '120px' : '184px', display: 'flex' }}>
             {cv.photo_url ? (
               <img
                 src={cv.photo_url}
@@ -316,12 +338,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             </div>
 
             <div
+              className={isMobile ? "cv-mobile-grid-2" : ""}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))',
                 gap: '8px',
-                width: '90%',
-                margin: '0 auto',
+                width: isMobile ? '100%' : '90%',
+                margin: isMobile ? '0' : '0 auto',
               }}
             >
               <MetricBox
@@ -348,13 +371,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       </div>
 
       {/* Corps */}
-      <div style={{ display: 'flex', flexDirection: 'row', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
-        <div
+      <div className={isMobile ? "cv-mobile-stack" : ""} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, background: '#f1f5f9', alignItems: 'stretch' }}>
+        <div className={isMobile ? "cv-mobile-full" : ""}
           style={{
-            width: '320px',
+            width: isMobile ? '100%' : '320px',
             flexShrink: 0,
             background: '#0f172a',
-            padding: '28px 20px',
+            padding: isMobile ? '18px 14px' : '28px 20px',
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100%',
@@ -484,7 +507,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           </div>
         </div>
 
-        <div style={{ flex: 1, background: '#f1f5f9', padding: '28px 32px' }}>
+        <div className={isMobile ? "cv-mobile-full" : ""} style={{ flex: 1, background: '#f1f5f9', padding: isMobile ? '16px 14px' : '28px 32px' }}>
           {sortedCareer.length > 0 ? (
             <Section title="Parcours professionnel">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -531,8 +554,8 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                           flex: 1,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '4px' }}>
-                          <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <h4 style={{ color: '#0f172a', fontSize: '13px', fontWeight: 700, margin: 0 }}>{entry.club}</h4>
                             <p style={{ color: '#dc2626', fontSize: '11px', fontWeight: 600, margin: '2px 0 0' }}>{entry.role}</p>
                             {(() => {
@@ -563,6 +586,8 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                                 fontSize: '10px',
                                 fontWeight: 700,
                                 flexShrink: 0,
+                                alignSelf: 'flex-start',
+                                marginTop: '2px',
                               }}
                             >
                               {entry.start_year}
@@ -642,14 +667,15 @@ export default function CVPreview({ cv }: CVPreviewProps) {
         </div>
       </div>
 
-      <div
+      <div className={isMobile ? "cv-mobile-stack cv-mobile-center" : ""}
         style={{
           background: '#0f172a',
-          padding: '12px 32px',
+          padding: isMobile ? '10px 14px' : '12px 32px',
           display: 'flex',
-          flexDirection: 'row',
+          flexDirection: isMobile ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: isMobile ? '10px' : '16px',
           borderTop: '2px solid #b91c1c',
         }}
       >
