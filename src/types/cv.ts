@@ -19,6 +19,7 @@ export interface CareerEntry {
   key_passes?: number;
   balls_recovered?: number;
   goals?: number;
+  assists?: number;
   shots_on_target?: number;
   description: string;
 }
@@ -79,7 +80,6 @@ export interface SportCV {
   logo_url: string | null;
   is_public: boolean;
   public_slug: string | null;
-  theme: 'classic' | 'modern' | 'scout';
   created_at: string;
   updated_at: string;
 }

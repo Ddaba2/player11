@@ -146,17 +146,7 @@ export default function CareerSection({
                       className="w-full bg-slate-900/50 border border-slate-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-500/50 text-sm"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Minutes</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={entry.minutes_played ?? ''}
-                      onChange={e => handleNumberChange(i, 'minutes_played', e.target.value)}
-                      className="w-full bg-slate-900/50 border border-slate-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-500/50 text-sm"
-                    />
-                  </div>
-                </div>
+                                  </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {profile === 'defender' && (
@@ -190,8 +180,8 @@ export default function CareerSection({
                         <input type="number" value={entry.goals ?? ''} onChange={e => handleNumberChange(i, 'goals', e.target.value)} className="w-full bg-slate-900/40 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Tirs cadrés</label>
-                        <input type="number" value={entry.shots_on_target ?? ''} onChange={e => handleNumberChange(i, 'shots_on_target', e.target.value)} className="w-full bg-slate-900/40 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Passe décisives</label>
+                        <input type="number" value={entry.assists ?? ''} onChange={e => handleNumberChange(i, 'assists', e.target.value)} className="w-full bg-slate-900/40 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </>
                   )}

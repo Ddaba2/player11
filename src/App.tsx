@@ -68,8 +68,8 @@ function AppRouter() {
         element={<CVViewWrapper onNavigate={() => {}} isPublic={true} />} 
       />
 
-      {/* Redirection par défaut */}
-      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+      {/* Redirection par défaut - toujours vers login pour sécurité */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

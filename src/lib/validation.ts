@@ -103,10 +103,9 @@ export function validateCVField(field: string, value: unknown): string | null {
 export function validateCVForm(form: Record<string, unknown>): ValidationResult {
   const errors: ValidationErrors = {};
   
-  // Validate all fields
+  // Valider uniquement les champs essentiels
   const fieldsToValidate = [
-    'full_name', 'sport', 'position', 'email', 'phone',
-    'height', 'weight', 'instagram', 'twitter'
+    'full_name', 'sport', 'position'
   ];
 
   fieldsToValidate.forEach(field => {
@@ -116,27 +115,23 @@ export function validateCVForm(form: Record<string, unknown>): ValidationResult 
     }
   });
 
-  // Validate career entries
-  if (Array.isArray(form.career)) {
+  // Valider les champs optionnels seulement s'ils sont remplis
+  const optionalFields = ['email', 'phone', 'height', 'weight', 'instagram', 'twitter'];
+  optionalFields.forEach(field => {
+    const value = form[field];
+    if (value && (typeof value === 'string' ? value.trim().length > 0 : true)) {
+      const error = validateCVField(field, value);
+      if (error) {
+        errors[field] = error;
+      }
+    }
+  });
+
+  // Valider les entrées de carrière seulement si elles existent
+  if (Array.isArray(form.career) && form.career.length > 0) {
     form.career.forEach((entry: any, index: number) => {
       if (!entry.club || entry.club.trim().length === 0) {
         errors[`career.${index}.club`] = 'Le nom du club est requis';
-      }
-      if (!entry.role || entry.role.trim().length === 0) {
-        errors[`career.${index}.role`] = 'Le poste est requis';
-      }
-    });
-  }
-
-  // Validate video links
-  if (Array.isArray(form.video_links)) {
-    form.video_links.forEach((video: any, index: number) => {
-      if (video.url && video.url.trim().length > 0) {
-        try {
-          new URL(video.url);
-        } catch {
-          errors[`video_links.${index}.url`] = 'URL invalide';
-        }
       }
     });
   }

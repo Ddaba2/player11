@@ -8,7 +8,7 @@ import {
   User, Activity, Briefcase, Star, Zap, Phone, Image as ImageIcon, Film, BarChart2, Link2, Copy, Check, Eye
 } from 'lucide-react';
 import Player11Logo from '../components/Logo';
-import { validateCVField, validateCVForm, generatePublicSlug } from '../lib/validation';
+import { validateCVField, validateCVForm } from '../lib/validation';
 
 // New sub-components
 import PersonalInfoSection from '../components/editor/PersonalInfoSection';
@@ -19,7 +19,6 @@ import AchievementsSection from '../components/editor/AchievementsSection';
 import SkillsSection from '../components/editor/SkillsSection';
 import StatsSection from '../components/editor/StatsSection';
 import ContactSection from '../components/editor/ContactSection';
-import ThemeSection from '../components/editor/ThemeSection';
 
 type SectionId = 'personal' | 'physical' | 'bio' | 'career' | 'achievements' | 'skills' | 'performance' | 'contact';
 
@@ -52,7 +51,6 @@ const emptyCV: Omit<SportCV, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   logo_url: null,
   is_public: true,
   public_slug: null,
-  theme: 'modern',
 };
 
 const genId = () => Math.random().toString(36).slice(2);
@@ -78,7 +76,6 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [copiedLink, setCopiedLink] = useState(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const formRef = useRef(form);
 
@@ -125,7 +122,31 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
     });
   };
 
+  const runUpdate = async (body: any) => {
+    // Supprimer public_slug car la colonne n'existe pas dans la base
+    const { public_slug, ...cleanBody } = body;
+    
+    console.log('🔍 OPÉRATION:', cvId ? 'UPDATE' : 'INSERT');
+    console.log('🔍 CV ID:', cvId);
+    console.log('🔍 Données à sauvegarder:', Object.keys(cleanBody));
+    
+    const result = cvId
+      ? supabase.from('sport_cvs').update(cleanBody).eq('id', cvId).select('id').single()
+      : supabase.from('sport_cvs').insert(cleanBody).select('id').single();
+    
+    return result;
+  };
+
   const handleSave = useCallback(async () => {
+    
+    
+    // Vérifier que l'utilisateur est bien connecté
+    if (!user) {
+      setSaveError('Vous devez être connecté pour sauvegarder. Veuillez vous reconnecter.');
+      setSaving(false);
+      return;
+    }
+
     const validationResult = validateCVForm(form as any);
     if (!validationResult.isValid) {
       setValidationErrors(validationResult.errors);
@@ -136,45 +157,47 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
     setSaving(true);
     setSaveError(null);
 
-    const raw = { ...form, user_id: user!.id };
-    if (form.is_public && !form.public_slug && form.full_name) {
-      raw.public_slug = generatePublicSlug(form.full_name);
-    }
-    
-    const payload = JSON.parse(JSON.stringify(raw));
-
-    const runUpdate = async (body: any) => {
-      if (cvId) return supabase.from('sport_cvs').update(body).eq('id', cvId);
-      return supabase.from('sport_cvs').insert(body).select('id').single();
+    // Créer le payload avec toutes les données du formulaire
+    const payload = {
+      user_id: user!.id,
+      full_name: form.full_name,
+      sport: form.sport,
+      position: form.position,
+      nationality: form.nationality,
+      date_of_birth: form.date_of_birth,
+      photo_url: form.photo_url,
+      height: form.height,
+      weight: form.weight,
+      dominant_side: form.dominant_side,
+      email: form.email,
+      phone: form.phone,
+      address: form.address,
+      instagram: form.instagram,
+      twitter: form.twitter,
+      current_club: form.current_club,
+      bio: form.bio,
+      career: form.career,
+      achievements: form.achievements,
+      skills: form.skills,
+      matches_played: form.matches_played,
+      goals: form.goals,
+      assists: form.assists,
+      avg_rating: form.avg_rating,
+      video_links: form.video_links,
+      action_photos: form.action_photos,
+      logo_url: form.logo_url,
+      is_public: form.is_public
     };
 
-    let res = await runUpdate(payload);
-    let { error, data } = res as any;
+    // Filtrer les valeurs null/undefined pour éviter les erreurs
+    const filteredPayload = Object.fromEntries(
+      Object.entries(payload).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+    );
 
-    // Retry logic if some columns are missing in the DB schema
-    if (error && (error.message.includes('column') || error.message.includes('public_slug') || error.message.includes('address') || error.message.includes('theme'))) {
-      console.warn('⚠️ Colonne manquante détectée, tentative de sauvegarde sans les colonnes optionnelles...');
-      const retryBody = { ...payload };
-      
-      // Liste des colonnes potentiellement manquantes (ajouts récents)
-      const optionalColumns = ['public_slug', 'address', 'theme', 'dominant_side', 'current_club'];
-      
-      // On retire récursivement les colonnes qui causent l'erreur
-      optionalColumns.forEach(col => {
-        if (error.message.includes(col)) {
-          delete retryBody[col];
-        }
-      });
-      
-      const second = await runUpdate(retryBody);
-      error = second.error;
-      data = second.data;
-      
-      if (!error) {
-        setSaveWarning('Le CV a été sauvegardé, mais certaines informations optionnelles ont été ignorées car la base de données Supabase n\'est pas à jour. Contactez l\'administrateur pour ajouter les colonnes manquantes.');
-      }
-    }
+    const res = await runUpdate(filteredPayload);
+    const { error, data } = res as any;
 
+    
     setSaving(false);
     if (error) {
       setSaveError(error.message);
@@ -186,7 +209,20 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
     setTimeout(() => setSaved(false), 2500);
 
     const id = cvId || data?.id;
-    if (!cvId && id) onNavigate('editor', id);
+    
+    // Rediriger automatiquement vers le CV après sauvegarde réussie
+    if (id) {
+      setTimeout(() => {
+        onNavigate('view', id);
+      }, 1500); // Attendre 1.5s pour montrer le message de succès
+    }
+    
+    if (!cvId && id) {
+      // Pour les nouveaux CV, d'abord créer puis rediriger
+      setTimeout(() => {
+        onNavigate('view', id);
+      }, 1500);
+    }
   }, [cvId, user, form, onNavigate]);
 
   useEffect(() => {
@@ -196,14 +232,6 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
     }, 30000);
     return () => { if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current); };
   }, [autoSaveEnabled, cvId, hasUnsavedChanges, saving, handleSave]);
-
-  const handleCopyLink = async () => {
-    if (!cvId || !form.public_slug) return;
-    const url = `${window.location.origin}/view/${form.public_slug}`;
-    await navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
 
   const sections: { id: SectionId; label: string; icon: ReactNode }[] = [
     { id: 'personal', label: 'Identité', icon: <User className="w-4 h-4" /> },
@@ -357,7 +385,7 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
                   onRemoveActionPhoto={(i) => update('action_photos', form.action_photos.filter((_, idx) => idx !== i))}
                 />
               )}
-              {activeSection === 'contact' && <ContactSection form={form} update={update} cvId={cvId} onCopyLink={handleCopyLink} copiedLink={copiedLink} />}
+              {activeSection === 'contact' && <ContactSection form={form} update={update} />}
               
               {/* Boutons de navigation bas de page */}
               <div className="mt-12 pt-6 border-t border-slate-800/50 flex items-center justify-between">
@@ -370,7 +398,7 @@ export default function CVEditor({ cvId, onNavigate }: CVEditorProps) {
                     }}
                     className="flex items-center gap-2 text-slate-400 hover:text-white transition font-medium"
                   >
-                    <ArrowLeft className="w-4 h-4" /> 
+                    <ArrowLeft className="w-4 h-4" />
                     Section précédente
                   </button>
                 ) : <div />}

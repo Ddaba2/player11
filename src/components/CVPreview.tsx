@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import type { ReactNode } from 'react';
 import type { SportCV, CareerEntry } from '../types/cv';
-import { QRCodeCanvas } from 'qrcode.react';
 import {
   Play,
   Image as ImageIcon,
@@ -67,7 +66,7 @@ function careerRecencyScore(entry: CareerEntry): number {
   return Math.max(e, s);
 }
 
-export default function CVPreview({ cv }: CVPreviewProps) {
+const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
   const [isMobile, setIsMobile] = useState(false);
   const age = calcAge(cv.date_of_birth);
   const videos = cv.video_links ?? [];
@@ -77,7 +76,6 @@ export default function CVPreview({ cv }: CVPreviewProps) {
   );
 
   const sportLabel = (cv.sport || 'Sport').toUpperCase();
-  const publicUrl = `${window.location.origin}/cv/${cv.public_slug || cv.id}`;
 
   useEffect(() => {
     const sync = () => setIsMobile(window.innerWidth < 768);
@@ -86,7 +84,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
     return () => window.removeEventListener('resize', sync);
   }, []);
 
-  // Layout responsive : desktop sur PC, adapté sur mobile
+  // Layout responsive : adapté à tous les écrans
 
   return (
     <div
@@ -108,44 +106,6 @@ export default function CVPreview({ cv }: CVPreviewProps) {
     >
       {/* Print styles */}
       <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            background: white !important;
-          }
-          #cv-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 210mm !important;
-            height: 297mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            visibility: visible !important;
-            overflow: hidden !important;
-          }
-          #cv-print-area * {
-            visibility: visible !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .cv-section {
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-          .cv-section-header {
-            page-break-after: avoid;
-          }
-        }
-        
         @media screen and (max-width: 768px) {
           #cv-print-area {
             width: 100% !important;
@@ -182,6 +142,68 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           }
         }
         
+        @media print {
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #cv-print-area {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+            box-shadow: none !important;
+            transform: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          /* Préserver l'en-tête original lors de l'impression */
+          .cv-header {
+            background: repeating-linear-gradient(
+              -28deg,
+              #0f172a 0px,
+              #0f172a 14px,
+              #131f35 14px,
+              #131f35 15px
+            ) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #cv-print-area > div:not(.cv-header) {
+            background: white !important;
+          }
+          #cv-print-area * {
+            visibility: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .cv-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 20px !important;
+          }
+          .cv-section-header {
+            page-break-after: avoid;
+          }
+          img {
+            max-width: 100% !important;
+            height: auto !important;
+          }
+        }
+        
+                
         .cv-section {
           page-break-inside: avoid;
           break-inside: avoid;
@@ -200,7 +222,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
       `}</style>
 
       {/* Bandeau : fond rayé + barre accent */}
-      <div className="cv-section cv-no-break"
+      <div className="cv-section cv-no-break cv-header"
         style={{
           background: `
             repeating-linear-gradient(
@@ -238,7 +260,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           <div className={isMobile ? "cv-mobile-full cv-mobile-center" : ""} style={{ flexShrink: 0, width: isMobile ? '120px' : '184px', display: 'flex' }}>
             {cv.photo_url ? (
               <img
-                src={cv.photo_url}
+                src={cv.photo_url.startsWith('data:') ? cv.photo_url : cv.photo_url}
                 alt={cv.full_name}
                 style={{
                   width: '100%',
@@ -249,7 +271,13 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                   border: '3px dashed rgba(185, 28, 28, 0.95)',
                   boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
                 }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                onError={(e) => { 
+                  console.error('Photo load error:', e);
+                  (e.target as HTMLImageElement).style.display = 'none'; 
+                }}
+                onLoad={(e) => {
+                  console.log('Photo loaded successfully');
+                }}
               />
             ) : (
               <div
@@ -383,26 +411,24 @@ export default function CVPreview({ cv }: CVPreviewProps) {
             minHeight: '100%',
           }}
         >
-          {cv.bio ? (
-            <Section title="Profil professionnel" light>
-              <p style={{ color: '#94a3b8', fontSize: '12px', lineHeight: 1.7 }}>{cv.bio}</p>
-            </Section>
-          ) : null}
+          <Section title="Profil professionnel" light>
+            <p style={{ color: '#94a3b8', fontSize: '12px', lineHeight: 1.7 }}>
+              {cv.bio || 'Aucune description disponible'}
+            </p>
+          </Section>
 
-          {(cv.height || cv.weight || cv.dominant_side) ? (
-            <Section title="Caractéristiques physiques" light>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {cv.height ? <StatRow label="Taille" value={`${cv.height} cm`} /> : null}
-                {cv.weight ? <StatRow label="Poids" value={`${cv.weight} kg`} /> : null}
-                {cv.dominant_side ? <StatRow label="Profil" value={cv.dominant_side} /> : null}
-              </div>
-            </Section>
-          ) : null}
+          <Section title="Caractéristiques physiques" light>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+              <StatRow label="Taille" value={cv.height ? `${cv.height} cm` : 'Non spécifié'} />
+              <StatRow label="Poids" value={cv.weight ? `${cv.weight} kg` : 'Non spécifié'} />
+              <StatRow label="Profil" value={cv.dominant_side || 'Non spécifié'} />
+            </div>
+          </Section>
 
-          {(cv.skills ?? []).length > 0 ? (
-            <Section title="Style de jeu" light>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                {(cv.skills ?? []).slice(0, 6).map(skill => (
+          <Section title="Style de jeu" light>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+              {(cv.skills ?? []).length > 0 ? (
+                (cv.skills ?? []).slice(0, 6).map(skill => (
                   <span
                     key={skill.id}
                     style={{
@@ -412,16 +438,26 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                       borderRadius: '10px',
                       padding: '7px 10px',
                       fontSize: '11px',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       textAlign: 'center',
                     }}
                   >
                     {skill.name}
                   </span>
-                ))}
-              </div>
-            </Section>
-          ) : null}
+                ))
+              ) : (
+                <span style={{
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontStyle: 'italic',
+                  gridColumn: 'span 2',
+                  textAlign: 'center'
+                }}>
+                  Aucune compétence spécifiée
+                </span>
+              )}
+            </div>
+          </Section>
 
           {/* Médias : bas de colonne, liens cliquables */}
           <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
@@ -617,7 +653,7 @@ export default function CVPreview({ cv }: CVPreviewProps) {
                             </p>
                           ) : (
                             <p style={{ color: '#475569', fontSize: '10px', margin: 0 }}>
-                              {`Buts: ${entry.goals ?? 0} • Tirs cadrés: ${entry.shots_on_target ?? 0}`}
+                              {`Buts: ${entry.goals ?? 0} • Passe décisives: ${entry.assists ?? 0}`}
                             </p>
                           )}
                         </div>
@@ -666,49 +702,6 @@ export default function CVPreview({ cv }: CVPreviewProps) {
           ) : null}
         </div>
       </div>
-
-      <div className={isMobile ? "cv-mobile-stack cv-mobile-center" : ""}
-        style={{
-          background: '#0f172a',
-          padding: isMobile ? '10px 14px' : '12px 32px',
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: isMobile ? '10px' : '16px',
-          borderTop: '2px solid #b91c1c',
-        }}
-      >
-        <span style={{ color: '#475569', fontSize: '10px' }}>
-          Profil généré avec Player11 — 2026
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div className="no-print" style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>
-            Scannez pour voir<br/>la version numérique
-          </div>
-          <QRCodeCanvas 
-            value={publicUrl} 
-            size={48} 
-            level="M" 
-            includeMargin={false}
-          />
-          <span
-            style={{
-              background: 'rgba(127,29,29,0.35)',
-              border: '1px solid #b91c1c',
-              color: '#fecaca',
-              padding: '3px 12px',
-              borderRadius: '16px',
-              fontSize: '10px',
-              fontWeight: 700,
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-            }}
-          >
-            {cv.sport || 'Sport'}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -723,14 +716,15 @@ function IdentityPill({ icon, text }: { icon: ReactNode; text: string }) {
         padding: '7px 12px',
         borderRadius: '999px',
         background: 'rgba(30, 41, 59, 0.95)',
-        border: '1px solid rgba(71, 85, 105, 0.6)',
+        border: '1px solid rgba(100, 116, 139, 0.3)',
         color: '#e2e8f0',
-        fontSize: '12px',
-        fontWeight: 600,
+        fontSize: '11px',
+        fontWeight: '600',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
       }}
     >
-      <span style={{ display: 'flex', color: '#94a3b8' }}>{icon}</span>
-      {text}
+      {icon}
+      <span>{text}</span>
     </div>
   );
 }
@@ -792,3 +786,6 @@ function MetricBox({ icon, label, value, compact = false }: { icon: ReactNode; l
     </div>
   );
 }
+
+// Optimiser le composant avec memo pour éviter les re-rendus inutiles
+export default memo(CVPreviewComponent);

@@ -7,24 +7,32 @@ import { supabase } from './supabase';
  * @returns The public URL of the uploaded file
  */
 export async function uploadImage(file: File, path: string): Promise<string> {
-  // 1. Upload the file
-  const { data, error } = await supabase.storage
-    .from('cv-assets')
-    .upload(path, file, {
-      upsert: true,
-      cacheControl: '3600',
+  try {
+    // Solution directe : convertir en base64 sans dépendre de la base de données
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64 = e.target?.result as string;
+          
+          // Utiliser directement la data URL sans stocker en base
+          console.log('Image convertie en base64 avec succès');
+          resolve(base64);
+        } catch (uploadError) {
+          console.error('Upload error:', uploadError);
+          reject(uploadError);
+        }
+      };
+      reader.onerror = () => {
+        console.error('Erreur de lecture du fichier');
+        reject(new Error('Failed to read file'));
+      };
+      reader.readAsDataURL(file);
     });
-
-  if (error) {
-    throw new Error(`Upload failed: ${error.message}`);
+  } catch (err) {
+    console.error('Upload error:', err);
+    throw err;
   }
-
-  // 2. Get the public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from('cv-assets')
-    .getPublicUrl(data.path);
-
-  return publicUrl;
 }
 
 /**

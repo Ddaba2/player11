@@ -19,19 +19,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Récupérer la session initiale
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Erreur lors de la récupération de la session:', error);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (error) {
+        console.error('Erreur critique lors de l\'initialisation de l\'auth:', error);
+        setUser(null);
+        setSession(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Écouter les changements d'état d'authentification
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Changement d\'état d\'authentification:', event, session?.user?.id);
+      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // Si l'utilisateur est déconnecté, nettoyer les données
+      if (!session) {
+        console.log('Utilisateur déconnecté');
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const normalizeUsername = (v: string) => v.trim().toLowerCase();
@@ -43,8 +68,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (username: string, password: string) => {
     const email = usernameToEmail(username);
+    console.log('🔐 Tentative de connexion:', email);
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    
+    if (error) {
+      console.error('❌ Erreur de connexion:', error);
+      return { error };
+    }
+    
+    // L'état sera mis à jour automatiquement par onAuthStateChange
+    // Pas besoin de forcer la mise à jour ici pour éviter les conflits
+    console.log('✅ Connexion en cours, attente de la confirmation...');
+    
+    return { error: null };
   };
 
   const signUp = async (fullName: string, username: string, password: string) => {

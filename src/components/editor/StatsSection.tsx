@@ -26,6 +26,28 @@ export default function StatsSection({
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
 
+  // Calculer les statistiques globales automatiquement depuis la carrière
+  const calculateGlobalStats = () => {
+    const career = form.career || [];
+    
+    const totalMatches = career.reduce((sum: number, entry: any) => 
+      sum + (entry.matches_played || 0), 0);
+    const totalGoals = career.reduce((sum: number, entry: any) => 
+      sum + (entry.goals || 0), 0);
+    const totalAssists = career.reduce((sum: number, entry: any) => 
+      sum + (entry.assists || 0), 0);
+
+    // Mettre à jour les statistiques globales
+    update('matches_played', totalMatches);
+    update('goals', totalGoals);
+    update('assists', totalAssists);
+  };
+
+  // Recalculer à chaque changement de carrière
+  React.useEffect(() => {
+    calculateGlobalStats();
+  }, [form.career]);
+
   const handleActionPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !user) return;
@@ -69,9 +91,11 @@ export default function StatsSection({
               type="number"
               min={0}
               value={form.matches_played ?? 0}
-              onChange={e => update('matches_played', parseInt(e.target.value, 10) || 0)}
-              className="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+              readOnly
+              className="w-full bg-slate-800/50 border border-slate-600/50 text-slate-400 rounded-xl px-4 py-3 text-sm cursor-not-allowed"
+              title="Calculé automatiquement depuis votre parcours"
             />
+            <p className="text-xs text-slate-500 mt-1">Calculé automatiquement</p>
           </div>
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Buts</label>
@@ -79,9 +103,11 @@ export default function StatsSection({
               type="number"
               min={0}
               value={form.goals ?? 0}
-              onChange={e => update('goals', parseInt(e.target.value, 10) || 0)}
-              className="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+              readOnly
+              className="w-full bg-slate-800/50 border border-slate-600/50 text-slate-400 rounded-xl px-4 py-3 text-sm cursor-not-allowed"
+              title="Calculé automatiquement depuis votre parcours"
             />
+            <p className="text-xs text-slate-500 mt-1">Calculé automatiquement</p>
           </div>
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Passes décisives</label>
@@ -89,9 +115,11 @@ export default function StatsSection({
               type="number"
               min={0}
               value={form.assists ?? 0}
-              onChange={e => update('assists', parseInt(e.target.value, 10) || 0)}
-              className="w-full bg-slate-700/50 border border-slate-600/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+              readOnly
+              className="w-full bg-slate-800/50 border border-slate-600/50 text-slate-400 rounded-xl px-4 py-3 text-sm cursor-not-allowed"
+              title="Calculé automatiquement depuis votre parcours"
             />
+            <p className="text-xs text-slate-500 mt-1">Calculé automatiquement</p>
           </div>
         </div>
       </div>
