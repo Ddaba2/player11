@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { SportCV } from '../types/cv';
 import CVRenderer from '../components/CVRenderer';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   ArrowLeft, Download, Share2, Trophy, Copy, Check,
   MessageCircle, ExternalLink, RefreshCw, Facebook
@@ -150,22 +152,53 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         return;
       }
 
-      // Mobile: forcer le rendu desktop AVANT d'ouvrir la fenêtre de print.
+      // Mobile: vrai téléchargement PDF (sans écran "printer").
       setIsExportingPdf(true);
       await new Promise(resolve => setTimeout(resolve, 180));
+      if ('fonts' in document) {
+        await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
+      }
 
-      // Quelques navigateurs n'appliquent pas tout de suite les nouveaux layouts.
-      // "afterprint" permet de retomber proprement à l'état mobile.
-      const afterPrint = new Promise<void>(resolve => {
-        const handler = () => {
-          window.removeEventListener('afterprint', handler);
-          resolve();
-        };
-        window.addEventListener('afterprint', handler);
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          const root = clonedDoc.getElementById('cv-print-area');
+          if (!root) return;
+          root.style.width = '794px';
+          root.style.maxWidth = '794px';
+          root.style.minWidth = '794px';
+          root.style.margin = '0 auto';
+        },
       });
 
-      window.print();
-      await Promise.race([afterPrint, new Promise(resolve => setTimeout(resolve, 2500))]);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+      let currentOffset = 0;
+      let page = 0;
+      while (currentOffset < imgHeight) {
+        if (page > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -currentOffset, imgWidth, imgHeight);
+        currentOffset += pageHeight;
+        page += 1;
+      }
+
+      const safeName = (cv?.full_name || 'cv')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9-_ ]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .toLowerCase();
+      const filename = `player11-cv-${safeName || 'athlete'}.pdf`;
+      pdf.save(filename);
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
       alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
