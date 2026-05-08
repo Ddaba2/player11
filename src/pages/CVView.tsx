@@ -147,15 +147,40 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     }));
   };
 
+  /** html2canvas coupe tout ce qui est en overflow:hidden — neutraliser sur le clone uniquement. */
+  const prepareExportClone = (root: HTMLElement) => {
+    root.style.setProperty('overflow', 'visible', 'important');
+    root.style.setProperty('max-height', 'none', 'important');
+    root.style.setProperty('max-width', '794px', 'important');
+    root.style.setProperty('width', '794px', 'important');
+    root.style.setProperty('min-width', '794px', 'important');
+
+    root.querySelectorAll<HTMLElement>('*').forEach((el) => {
+      const cs = window.getComputedStyle(el);
+      if (
+        cs.overflow === 'hidden' ||
+        cs.overflow === 'clip' ||
+        cs.overflowY === 'hidden' ||
+        cs.overflowX === 'hidden'
+      ) {
+        el.style.setProperty('overflow', 'visible', 'important');
+      }
+    });
+  };
+
   const buildExportCanvas = async (source: HTMLElement) => {
     const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-cv-pdf-export', '1');
     wrapper.style.position = 'fixed';
-    wrapper.style.left = '-10000px';
+    wrapper.style.left = '0';
     wrapper.style.top = '0';
     wrapper.style.width = '794px';
+    wrapper.style.maxWidth = '794px';
     wrapper.style.background = '#ffffff';
     wrapper.style.pointerEvents = 'none';
+    wrapper.style.opacity = '0';
     wrapper.style.zIndex = '-1';
+    wrapper.style.overflow = 'visible';
 
     const clone = source.cloneNode(true) as HTMLElement;
     clone.id = 'cv-print-area-export';
@@ -166,25 +191,82 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     clone.style.height = 'auto';
     clone.style.transform = 'none';
     clone.style.overflow = 'visible';
+    prepareExportClone(clone);
 
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
     try {
       await waitForImages(clone);
+      if ('fonts' in document) {
+        await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
+      }
+      await new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+      void clone.offsetHeight;
+      void wrapper.offsetHeight;
+
+      const fullH = Math.max(clone.scrollHeight, clone.offsetHeight, wrapper.scrollHeight);
+      const windowH = Math.max(fullH + 400, clone.scrollHeight + 160);
+
       return await html2canvas(clone, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
-        width: 794,
+        x: 0,
+        y: 0,
+        width: clone.offsetWidth,
+        height: fullH,
         windowWidth: 794,
-        scrollX: 0,
-        scrollY: 0,
+        windowHeight: windowH,
       });
     } finally {
       document.body.removeChild(wrapper);
     }
+  };
+
+  /** Découpe le canvas source en bandes puis une page PDF par bande — fiable mobile. */
+  const canvasToPagedPdfBlob = (canvas: HTMLCanvasElement): Blob => {
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const pxPerMm = canvas.width / pageWidth;
+    const slicePxH = Math.max(16, Math.floor(pageHeight * pxPerMm));
+
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = canvas.width;
+    const sliceCtx = sliceCanvas.getContext('2d');
+    if (!sliceCtx) {
+      return pdf.output('blob');
+    }
+
+    let yPx = 0;
+    let page = 0;
+    while (yPx < canvas.height) {
+      if (page > 0) pdf.addPage();
+      const sliceH = Math.min(slicePxH, canvas.height - yPx);
+      sliceCanvas.height = sliceH;
+      sliceCtx.fillStyle = '#ffffff';
+      sliceCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      sliceCtx.drawImage(
+        canvas,
+        0, yPx, canvas.width, sliceH,
+        0, 0, canvas.width, sliceH,
+      );
+      const jpeg = sliceCanvas.toDataURL('image/jpeg', 0.92);
+      const sliceMmH = (sliceH * pageWidth) / canvas.width;
+      pdf.addImage(jpeg, 'JPEG', 0, 0, pageWidth, sliceMmH, undefined, 'FAST');
+
+      yPx += sliceH;
+      page += 1;
+    }
+
+    return pdf.output('blob');
   };
 
   const downloadBlob = async (blob: Blob, filename: string) => {
@@ -246,22 +328,7 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
       }
 
       const canvas = await buildExportCanvas(element);
-
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-      let currentOffset = 0;
-      let page = 0;
-      while (currentOffset < imgHeight) {
-        if (page > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, -currentOffset, imgWidth, imgHeight);
-        currentOffset += pageHeight;
-        page += 1;
-      }
+      const blob = canvasToPagedPdfBlob(canvas);
 
       const safeName = (cv?.full_name || 'cv')
         .normalize('NFD')
@@ -271,7 +338,6 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         .replace(/\s+/g, '-')
         .toLowerCase();
       const filename = `player11-cv-${safeName || 'athlete'}.pdf`;
-      const blob = pdf.output('blob');
       await downloadBlob(blob, filename);
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
