@@ -19,6 +19,7 @@ import {
 
 interface CVPreviewProps {
   cv: SportCV;
+  forceDesktopLayout?: boolean;
 }
 
 const calcAge = (dob: string | null) => {
@@ -66,7 +67,7 @@ function careerRecencyScore(entry: CareerEntry): number {
   return Math.max(e, s);
 }
 
-const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
+const CVPreviewComponent = ({ cv, forceDesktopLayout = false }: CVPreviewProps) => {
   const [isMobile, setIsMobile] = useState(false);
   const age = calcAge(cv.date_of_birth);
   const videos = cv.video_links ?? [];
@@ -78,11 +79,16 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
   const sportLabel = (cv.sport || 'Sport').toUpperCase();
 
   useEffect(() => {
+    if (forceDesktopLayout) {
+      setIsMobile(false);
+      return;
+    }
+
     const sync = () => setIsMobile(window.innerWidth < 768);
     sync();
     window.addEventListener('resize', sync);
     return () => window.removeEventListener('resize', sync);
-  }, []);
+  }, [forceDesktopLayout]);
 
   // Layout responsive : adapté à tous les écrans
 
@@ -303,7 +309,7 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
                   console.error('Photo load error:', e);
                   (e.target as HTMLImageElement).style.display = 'none'; 
                 }}
-                onLoad={(e) => {
+                onLoad={() => {
                   console.log('Photo loaded successfully');
                 }}
               />

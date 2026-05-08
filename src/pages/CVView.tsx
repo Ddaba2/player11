@@ -20,8 +20,9 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
-    const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [refetching, setRefetching] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
   const prevCvIdRef = useRef<string | null>(null);
   const cvRef = useRef<HTMLDivElement>(null);
@@ -141,13 +142,35 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         return;
       }
 
-      // Utiliser window.print() sur tous les appareils (PC et mobile)
-      // C'est la méthode la plus simple et la plus universelle
+      // Sur PC, on garde exactement l'ancienne méthode: window.print().
+      // Sur mobile, on force juste le layout "desktop" pendant le print pour que le rendu soit identique.
+      const isMobileScreen = window.innerWidth < 768;
+      if (!isMobileScreen) {
+        window.print();
+        return;
+      }
+
+      // Mobile: forcer le rendu desktop AVANT d'ouvrir la fenêtre de print.
+      setIsExportingPdf(true);
+      await new Promise(resolve => setTimeout(resolve, 180));
+
+      // Quelques navigateurs n'appliquent pas tout de suite les nouveaux layouts.
+      // "afterprint" permet de retomber proprement à l'état mobile.
+      const afterPrint = new Promise<void>(resolve => {
+        const handler = () => {
+          window.removeEventListener('afterprint', handler);
+          resolve();
+        };
+        window.addEventListener('afterprint', handler);
+      });
+
       window.print();
-      
+      await Promise.race([afterPrint, new Promise(resolve => setTimeout(resolve, 2500))]);
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
       alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -338,7 +361,7 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         {/* CV Preview */}
         <div className="max-w-5xl mx-auto px-0 sm:px-6 py-0 sm:py-8">
           <div ref={cvRef} className="bg-white shadow-2xl sm:rounded-2xl overflow-hidden">
-            <CVRenderer cv={cv} />
+            <CVRenderer cv={cv} forceDesktopLayout={isExportingPdf} />
           </div>
 
           {/* Share prompt at bottom */}
