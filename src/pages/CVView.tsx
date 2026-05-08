@@ -136,6 +136,92 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
     setShowShareMenu(false);
   };
 
+  const waitForImages = async (node: HTMLElement) => {
+    const images = Array.from(node.querySelectorAll('img'));
+    await Promise.all(images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+    }));
+  };
+
+  const buildExportCanvas = async (source: HTMLElement) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-10000px';
+    wrapper.style.top = '0';
+    wrapper.style.width = '794px';
+    wrapper.style.background = '#ffffff';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.zIndex = '-1';
+
+    const clone = source.cloneNode(true) as HTMLElement;
+    clone.id = 'cv-print-area-export';
+    clone.style.width = '794px';
+    clone.style.minWidth = '794px';
+    clone.style.maxWidth = '794px';
+    clone.style.margin = '0';
+    clone.style.height = 'auto';
+    clone.style.transform = 'none';
+    clone.style.overflow = 'visible';
+
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    try {
+      await waitForImages(clone);
+      return await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 794,
+        windowWidth: 794,
+        scrollX: 0,
+        scrollY: 0,
+      });
+    } finally {
+      document.body.removeChild(wrapper);
+    }
+  };
+
+  const downloadBlob = async (blob: Blob, filename: string) => {
+    const mobileUA = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    if (mobileUA && navigator.share && navigator.canShare) {
+      try {
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `CV ${cv?.full_name || 'Player11'}`,
+            files: [file],
+          });
+          return;
+        }
+      } catch {
+        // Fallback direct download/open below.
+      }
+    }
+
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // iOS/Safari bloque parfois le "download"; on ouvre le PDF.
+    if (mobileUA && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    }
+
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  };
+
   const handleDownloadPDF = async () => {
     try {
       const element = document.getElementById('cv-print-area');
@@ -159,20 +245,7 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
       }
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        onclone: (clonedDoc) => {
-          const root = clonedDoc.getElementById('cv-print-area');
-          if (!root) return;
-          root.style.width = '794px';
-          root.style.maxWidth = '794px';
-          root.style.minWidth = '794px';
-          root.style.margin = '0 auto';
-        },
-      });
+      const canvas = await buildExportCanvas(element);
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -198,7 +271,8 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
         .replace(/\s+/g, '-')
         .toLowerCase();
       const filename = `player11-cv-${safeName || 'athlete'}.pdf`;
-      pdf.save(filename);
+      const blob = pdf.output('blob');
+      await downloadBlob(blob, filename);
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
       alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
