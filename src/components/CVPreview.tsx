@@ -101,7 +101,8 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
         transform: 'none',
         transformOrigin: 'top left',
         maxHeight: 'none',
-        minHeight: 'auto'
+        minHeight: 'auto',
+        height: 'auto'
       }}
     >
       {/* Print styles */}
@@ -114,6 +115,8 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
             height: auto !important;
             overflow-x: hidden !important;
             overflow-y: auto !important;
+            transform: none !important;
+            margin: 0 auto !important;
           }
           body {
             overflow-x: hidden !important;
@@ -145,7 +148,7 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
         @media print {
           @page {
             size: A4;
-            margin: 15mm;
+            margin: 10mm;
           }
           body {
             margin: 0 !important;
@@ -155,16 +158,26 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
             print-color-adjust: exact !important;
           }
           #cv-print-area {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
+            width: 794px !important;
+            max-width: 794px !important;
+            min-width: 794px !important;
             height: auto !important;
+            max-height: none !important;
             overflow: visible !important;
             background: white !important;
             box-shadow: none !important;
             transform: none !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
+            position: relative !important;
+          }
+          #cv-print-area > div {
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          #cv-print-area > div > div {
+            max-height: none !important;
+            overflow: visible !important;
           }
           /* Préserver l'en-tête original lors de l'impression */
           .cv-header {
@@ -216,6 +229,20 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
         }
         
         .cv-no-break {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .cv-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+          page-break-after: avoid;
+          page-break-before: avoid;
+        }
+        .cv-mobile-stack {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .cv-mobile-full {
           page-break-inside: avoid;
           break-inside: avoid;
         }
@@ -405,10 +432,12 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
             width: isMobile ? '100%' : '320px',
             flexShrink: 0,
             background: '#0f172a',
-            padding: isMobile ? '18px 14px' : '28px 20px',
+            padding: isMobile ? '12px 10px' : '28px 20px',
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100%',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid'
           }}
         >
           <Section title="Profil professionnel" light>
