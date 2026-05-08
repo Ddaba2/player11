@@ -158,26 +158,27 @@ const CVPreviewComponent = ({ cv }: CVPreviewProps) => {
             print-color-adjust: exact !important;
           }
           #cv-print-area {
-            width: 794px !important;
-            max-width: 794px !important;
-            min-width: 794px !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            min-width: 210mm !important;
             height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
+            max-height: 280mm !important;
+            overflow: hidden !important;
             background: white !important;
             box-shadow: none !important;
-            transform: none !important;
+            transform: scale(0.9) !important;
+            transform-origin: top center !important;
             margin: 0 auto !important;
             padding: 0 !important;
             position: relative !important;
           }
           #cv-print-area > div {
-            max-height: none !important;
-            overflow: visible !important;
+            max-height: 280mm !important;
+            overflow: hidden !important;
           }
           #cv-print-area > div > div {
-            max-height: none !important;
-            overflow: visible !important;
+            max-height: 280mm !important;
+            overflow: hidden !important;
           }
           /* Préserver l'en-tête original lors de l'impression */
           .cv-header {
