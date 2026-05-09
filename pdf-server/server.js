@@ -15,10 +15,49 @@ const cors = require('cors');
 
 const app = express();
 const PORT = 3001;
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const requestWindowMs = 60 * 1000;
+const maxRequestsPerWindow = 30;
+const requestHits = new Map();
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Origin non autorisee'));
+  },
+  methods: ['GET', 'POST'],
+}));
+app.use(express.json({ limit: '100kb' }));
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  const state = requestHits.get(ip) || { count: 0, start: now };
+  if (now - state.start > requestWindowMs) {
+    state.count = 0;
+    state.start = now;
+  }
+  state.count += 1;
+  requestHits.set(ip, state);
+  if (state.count > maxRequestsPerWindow) {
+    return res.status(429).json({ error: 'Trop de requetes, veuillez patienter.' });
+  }
+  next();
+});
 
 /**
  * 🎯 Endpoint: POST /api/generate-pdf
@@ -32,9 +71,14 @@ app.use(express.json());
  */
 app.post('/api/generate-pdf', async (req, res) => {
   const { cvId, supabaseUrl, baseUrl = 'http://localhost:5173' } = req.body;
+  const isValidCvId = typeof cvId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(cvId);
+  const isValidBaseUrl = typeof baseUrl === 'string' && allowedOrigins.includes(baseUrl);
 
-  if (!cvId) {
-    return res.status(400).json({ error: 'cvId requis' });
+  if (!isValidCvId) {
+    return res.status(400).json({ error: 'cvId invalide' });
+  }
+  if (!isValidBaseUrl) {
+    return res.status(400).json({ error: 'baseUrl non autorisee' });
   }
 
   let browser;

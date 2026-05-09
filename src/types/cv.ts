@@ -84,6 +84,27 @@ export interface SportCV {
   updated_at: string;
 }
 
+export interface CVViewEvent {
+  id: string;
+  cv_id: string;
+  owner_user_id: string;
+  source: string;
+  viewer_user_agent: string | null;
+  viewer_name: string | null;
+  viewer_email: string | null;
+  viewed_at: string;
+}
+
+export interface CVFeedbackComment {
+  id: string;
+  cv_id: string;
+  owner_user_id: string;
+  author_name: string;
+  author_email: string | null;
+  content: string;
+  created_at: string;
+}
+
 export const SPORTS = [
   'Football', 'Basketball', 'Tennis', 'Rugby', 'Natation', 'Athlétisme',
   'Handball', 'Volleyball', 'Cyclisme', 'Boxe', 'Judo', 'Karaté',

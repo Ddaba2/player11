@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import type { SportCV } from '../types/cv';
-import { Plus, Trophy, LogOut, Eye, CreditCard as Edit3, Trash2, User } from 'lucide-react';
+import type { SportCV, CVViewEvent } from '../types/cv';
+import { Plus, Trophy, LogOut, Eye, CreditCard as Edit3, Trash2, User, Bell } from 'lucide-react';
 import Player11Logo from '../components/Logo';
 
 interface DashboardProps {
@@ -12,12 +12,43 @@ interface DashboardProps {
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const { user, signOut } = useAuth();
   const [cvs, setCvs] = useState<SportCV[]>([]);
+  const [viewEvents, setViewEvents] = useState<CVViewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [liveNotice, setLiveNotice] = useState<CVViewEvent | null>(null);
+  const [lastSeenAt, setLastSeenAt] = useState<string>(() => {
+    return localStorage.getItem('cv-view-events-last-seen') ?? new Date().toISOString();
+  });
 
   useEffect(() => {
     fetchCVs();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`cv-view-events-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'cv_view_events',
+          filter: `owner_user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const event = payload.new as CVViewEvent;
+          setViewEvents((prev) => [event, ...prev].slice(0, 20));
+          setLiveNotice(event);
+          window.setTimeout(() => setLiveNotice(null), 6000);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const fetchCVs = async () => {
     const { data } = await supabase
@@ -26,6 +57,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       .eq('user_id', user!.id)
       .order('created_at', { ascending: false });
     setCvs(data ?? []);
+    const { data: eventsData } = await supabase
+      .from('cv_view_events')
+      .select('*')
+      .eq('owner_user_id', user!.id)
+      .order('viewed_at', { ascending: false })
+      .limit(20);
+    setViewEvents((eventsData ?? []) as CVViewEvent[]);
     setLoading(false);
   };
 
@@ -52,6 +90,22 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     if (!dob) return null;
     const diff = Date.now() - new Date(dob).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+  };
+
+  const getCvNameById = (cvId: string) => {
+    const match = cvs.find((cv) => cv.id === cvId);
+    return match?.full_name || 'votre CV';
+  };
+
+  const unreadCount = useMemo(
+    () => viewEvents.filter((event) => new Date(event.viewed_at) > new Date(lastSeenAt)).length,
+    [viewEvents, lastSeenAt],
+  );
+
+  const markNotificationsAsRead = () => {
+    const now = new Date().toISOString();
+    localStorage.setItem('cv-view-events-last-seen', now);
+    setLastSeenAt(now);
   };
 
   const displayUsername = user?.email?.endsWith('@cvfoot.local') || user?.email?.endsWith('@cvfoot.app')
@@ -98,6 +152,45 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <span>Nouveau CV</span>
           </button>
         </div>
+
+        <section className="mb-8 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-bold">Notifications de consultation</h2>
+            {unreadCount > 0 && (
+              <span className="ml-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+              </span>
+            )}
+            {viewEvents.length > 0 && (
+              <button
+                onClick={markNotificationsAsRead}
+                className="ml-auto text-xs text-slate-300 hover:text-white transition"
+              >
+                Marquer comme lues
+              </button>
+            )}
+          </div>
+          {viewEvents.length === 0 ? (
+            <p className="text-slate-400 text-sm">Aucune consultation enregistree pour le moment.</p>
+          ) : (
+            <div className="space-y-2">
+              {viewEvents.slice(0, 6).map((event) => (
+                <div key={event.id} className="bg-slate-900/70 border border-slate-700 rounded-xl p-3">
+                  <p className="text-sm text-slate-100">
+                    <span className="font-semibold">{event.viewer_name || 'Visiteur anonyme'}</span>
+                    {' '}a consulte le CV de{' '}
+                    <span className="font-semibold">{getCvNameById(event.cv_id)}</span>.
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {new Date(event.viewed_at).toLocaleString('fr-FR')}
+                    {event.viewer_email ? ` · ${event.viewer_email}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -182,7 +275,18 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </div>
         )}
 
-              </main>
+        {liveNotice && (
+          <div className="fixed right-4 bottom-4 z-30 max-w-sm bg-slate-900 border border-amber-500/40 rounded-xl p-4 shadow-2xl">
+            <p className="text-amber-300 text-xs font-bold uppercase tracking-wide">Nouvelle consultation</p>
+            <p className="text-slate-100 text-sm mt-1">
+              <span className="font-semibold">{liveNotice.viewer_name || 'Quelqu’un'}</span>
+              {' '}vient de consulter le CV de{' '}
+              <span className="font-semibold">{getCvNameById(liveNotice.cv_id)}</span>.
+            </p>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { SportCV } from '../types/cv';
+import { useAuth } from '../context/AuthContext';
 import CVRenderer from '../components/CVRenderer';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -17,6 +18,7 @@ interface CVViewProps {
 }
 
 export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewProps) {
+  const { user } = useAuth();
   const [cv, setCv] = useState<SportCV | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -25,6 +27,15 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   const [refreshTick, setRefreshTick] = useState(0);
   const [refetching, setRefetching] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [viewerName, setViewerName] = useState('');
+  const [viewerEmail, setViewerEmail] = useState('');
+  const [viewerKnown, setViewerKnown] = useState(false);
+  const [commentAuthorName, setCommentAuthorName] = useState('');
+  const [commentAuthorEmail, setCommentAuthorEmail] = useState('');
+  const [commentContent, setCommentContent] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [connectedDisplayName, setConnectedDisplayName] = useState('');
+  const [commentSuccess, setCommentSuccess] = useState('');
   const shareRef = useRef<HTMLDivElement>(null);
   const prevCvIdRef = useRef<string | null>(null);
   const cvRef = useRef<HTMLDivElement>(null);
@@ -91,10 +102,8 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   }, []);
 
   const getShareUrl = () => {
-    // Use public_slug if available, fallback to cvId
     const identifier = cv?.public_slug || cvId;
-    const paramName = cv?.public_slug ? 'slug' : 'cv';
-    return `${window.location.origin}${window.location.pathname}?${paramName}=${identifier}`;
+    return `${window.location.origin}/cv-print/${identifier}`;
   };
 
   const handleShare = async () => {
@@ -348,19 +357,120 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
   };
 
   useEffect(() => {
+    const loadConnectedProfile = async () => {
+      if (!user) {
+        setConnectedDisplayName('');
+        setCommentAuthorEmail('');
+        return;
+      }
+      const { data } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const displayName = data?.display_name?.trim() || user.email?.split('@')[0] || 'Utilisateur';
+      setConnectedDisplayName(displayName);
+      setCommentAuthorName(displayName);
+      setCommentAuthorEmail(user.email ?? '');
+    };
+    loadConnectedProfile();
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!isPublic || !cv) return;
-    const key = `cv-view-logged-${cv.id}`;
+    const storedName = localStorage.getItem('cv-public-viewer-name') ?? '';
+    const storedEmail = localStorage.getItem('cv-public-viewer-email') ?? '';
+    if (storedName.trim()) {
+      setViewerName(storedName);
+      setViewerEmail(storedEmail);
+      setViewerKnown(true);
+      return;
+    }
+    setViewerKnown(false);
+  }, [isPublic, cv?.id]);
+
+  const logPublicView = async (name: string, email: string) => {
+    if (!cv) return;
+    const key = `cv-view-logged-${cv.id}-${name.trim().toLowerCase()}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, '1');
-    supabase.from('cv_view_events').insert({
+    await supabase.from('cv_view_events').insert({
       cv_id: cv.id,
       owner_user_id: cv.user_id,
       source: 'public_link',
       viewer_user_agent: navigator.userAgent,
-    }).then(() => {
-      // Fire and forget: tracking should never block public access
+      viewer_name: name.trim(),
+      viewer_email: email.trim() || null,
     });
-  }, [isPublic, cv]);
+  };
+
+  const handleConfirmIdentity = async () => {
+    const cleanName = viewerName.trim();
+    if (!cleanName) {
+      alert('Veuillez indiquer votre nom avant de consulter ce CV.');
+      return;
+    }
+    localStorage.setItem('cv-public-viewer-name', cleanName);
+    localStorage.setItem('cv-public-viewer-email', viewerEmail.trim());
+    await logPublicView(cleanName, viewerEmail);
+    setViewerKnown(true);
+  };
+
+  useEffect(() => {
+    if (!isPublic || !cv || !viewerKnown || !viewerName.trim()) return;
+    logPublicView(viewerName, viewerEmail);
+  }, [isPublic, cv?.id, viewerKnown, viewerName, viewerEmail]);
+
+  const handleAddComment = async () => {
+    if (!cv) return;
+
+    const sanitizeInput = (value: string, maxLength: number) =>
+      value
+        .replace(/[<>]/g, '')
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .trim()
+        .slice(0, maxLength);
+
+    const authorName = user
+      ? sanitizeInput(connectedDisplayName || user.email?.split('@')[0] || 'Utilisateur', 120)
+      : sanitizeInput(commentAuthorName || viewerName, 120);
+    const authorEmail = user
+      ? (user.email ?? null)
+      : (sanitizeInput(commentAuthorEmail || viewerEmail, 160) || null);
+    const content = sanitizeInput(commentContent, 2000);
+
+    if (!authorName) {
+      alert("Veuillez indiquer votre nom pour publier un commentaire.");
+      return;
+    }
+    if (!content) {
+      alert('Le commentaire ne peut pas etre vide.');
+      return;
+    }
+
+    setSubmittingComment(true);
+    const { error } = await supabase.from('cv_feedback_comments').insert({
+      cv_id: cv.id,
+      owner_user_id: cv.user_id,
+      author_name: authorName,
+      author_email: authorEmail,
+      content,
+    });
+    setSubmittingComment(false);
+
+    if (error) {
+      alert("Impossible d'envoyer le commentaire. Veuillez reessayer.");
+      return;
+    }
+
+    setCommentContent('');
+    setCommentSuccess('Merci, votre commentaire a bien ete enregistre.');
+    setTimeout(() => setCommentSuccess(''), 5000);
+    if (!user) {
+      setCommentAuthorName(authorName);
+      setCommentAuthorEmail((authorEmail ?? '').toString());
+    }
+  };
 
   if (loading) {
     return (
@@ -533,8 +643,89 @@ export default function CVView({ cvId, onNavigate, isPublic = false }: CVViewPro
 
         {/* CV Preview */}
         <div className="max-w-5xl mx-auto px-0 sm:px-6 py-0 sm:py-8">
+          {isPublic && !viewerKnown && (
+            <div className="no-print mb-5 mx-4 sm:mx-0 bg-slate-800/70 border border-slate-700 rounded-2xl p-5">
+              <h3 className="text-white font-bold">Avant de consulter, presentez-vous</h3>
+              <p className="text-slate-400 text-sm mt-1">
+                Votre nom sera envoye au proprietaire pour l&apos;informer de la consultation de son CV.
+              </p>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Votre nom *"
+                  value={viewerName}
+                  onChange={(e) => setViewerName(e.target.value)}
+                  className="sm:col-span-1 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                />
+                <input
+                  type="email"
+                  placeholder="Votre email (optionnel)"
+                  value={viewerEmail}
+                  onChange={(e) => setViewerEmail(e.target.value)}
+                  className="sm:col-span-1 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                />
+                <button
+                  onClick={handleConfirmIdentity}
+                  className="sm:col-span-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg px-4 py-2 transition"
+                >
+                  Continuer
+                </button>
+              </div>
+            </div>
+          )}
+
           <div ref={cvRef} className="bg-white shadow-2xl sm:rounded-2xl overflow-hidden">
             <CVRenderer cv={cv} forceDesktopLayout={isExportingPdf} />
+          </div>
+
+          <div className="no-print mt-6 mx-4 sm:mx-0 bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5">
+            <h3 className="text-white font-bold">Commentaires & suggestions</h3>
+            <p className="text-slate-400 text-sm mt-0.5">
+              Aidez a ameliorer l&apos;application avec des retours concrets.
+            </p>
+
+            {user ? (
+              <div className="mt-4 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2">
+                <p className="text-slate-200 text-sm">
+                  Commente en tant que <span className="font-semibold">{connectedDisplayName || 'Utilisateur'}</span>
+                  {user.email ? <span className="text-slate-400"> ({user.email})</span> : null}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Nom de l'auteur *"
+                  value={commentAuthorName}
+                  onChange={(e) => setCommentAuthorName(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                />
+                <input
+                  type="email"
+                  placeholder="Email de l'auteur (optionnel)"
+                  value={commentAuthorEmail}
+                  onChange={(e) => setCommentAuthorEmail(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-red-500"
+                />
+              </div>
+            )}
+            <textarea
+              placeholder="Votre commentaire..."
+              value={commentContent}
+              onChange={(e) => setCommentContent(e.target.value)}
+              rows={4}
+              className="mt-3 w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-red-500 resize-y"
+            />
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={handleAddComment}
+                disabled={submittingComment}
+                className="bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg transition"
+              >
+                {submittingComment ? 'Envoi...' : 'Publier le commentaire'}
+              </button>
+            </div>
+            {commentSuccess && <p className="mt-3 text-green-400 text-sm">{commentSuccess}</p>}
           </div>
 
           {/* Share prompt at bottom */}
