@@ -154,7 +154,7 @@ const CVPreviewComponent = ({ cv, forceDesktopLayout = false }: CVPreviewProps) 
         @media print {
           @page {
             size: A4;
-            margin: 10mm;
+            margin: 5mm;
           }
           body {
             margin: 0 !important;
@@ -164,26 +164,26 @@ const CVPreviewComponent = ({ cv, forceDesktopLayout = false }: CVPreviewProps) 
             print-color-adjust: exact !important;
           }
           #cv-print-area {
-            width: 210mm !important;
-            max-width: 210mm !important;
-            min-width: 210mm !important;
-            height: auto !important;
-            max-height: 280mm !important;
+            width: 200mm !important;
+            max-width: 200mm !important;
+            min-width: 200mm !important;
+            height: 287mm !important;
+            max-height: 287mm !important;
             overflow: hidden !important;
             background: white !important;
             box-shadow: none !important;
-            transform: scale(0.9) !important;
+            transform: scale(1) !important;
             transform-origin: top center !important;
             margin: 0 auto !important;
             padding: 0 !important;
             position: relative !important;
           }
           #cv-print-area > div {
-            max-height: 280mm !important;
+            max-height: 287mm !important;
             overflow: hidden !important;
           }
           #cv-print-area > div > div {
-            max-height: 280mm !important;
+            max-height: 287mm !important;
             overflow: hidden !important;
           }
           /* Préserver l'en-tête original lors de l'impression */
